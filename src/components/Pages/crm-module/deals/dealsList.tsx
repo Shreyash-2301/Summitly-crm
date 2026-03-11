@@ -3,16 +3,44 @@
 import Footer from "@/core/common/footer/footer";
 import PageHeader from "@/core/common/page-header/pageHeader";
 import SearchInput from "@/core/common/dataTable/dataTableSearch";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DealsListData } from "../../../../core/json/dealsListData";
 import PredefinedDatePicker from "@/core/common/common-dateRangePicker/PredefinedDatePicker";
 import Datatable from "@/core/common/dataTable";
 import ModalDeals from "./modal/modalDeals";
 import Link from "next/link";
 import { all_routes } from "@/router/all_routes";
+import type { NormalizedScarlettDeal } from "@/core/types/scarlettDeal";
 
 const DealsListComponent = () => {
 const [filledStars, setFilledStars] = useState<{ [key: string]: boolean }>({});
+const [dealsData, setDealsData] = useState<NormalizedScarlettDeal[]>(
+  DealsListData as NormalizedScarlettDeal[]
+);
+const [loading, setLoading]   = useState(true);
+const [dataSource, setDataSource] = useState<'live' | 'fallback'>('fallback');
+const [totalDeals, setTotalDeals] = useState(0);
+
+/** Fetch deals from the Scarlett CRM proxy API */
+const loadDeals = useCallback(async (search = '') => {
+  try {
+    setLoading(true);
+    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+    const res = await fetch(`/api/scarlett-deals${qs}`);
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+      setDealsData(json.data);
+      setTotalDeals(json.total ?? json.data.length);
+      setDataSource(json.source ?? 'fallback');
+    }
+  } catch (err) {
+    console.error('[DealsListComponent] fetch error:', err);
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
+useEffect(() => { loadDeals(); }, [loadDeals]);
 
 const handleClick = (key: string) => {
   setFilledStars((prev) => ({
@@ -20,7 +48,7 @@ const handleClick = (key: string) => {
     [key]: !prev[key], // toggle on/off
   }));
 };
-  const data = DealsListData;
+  const data = dealsData;
   const columns = [
   {
     title: "",
@@ -40,8 +68,8 @@ const handleClick = (key: string) => {
     {
       title: "Deal Name",
       dataIndex: "DealName",
-      render: (text: string) => (
-        <Link href={all_routes.dealsDetails} className="title-name">
+      render: (text: string, record: any) => (
+        <Link href={`/crm/deals-details/${record.key}`} className="title-name">
           {text}
         </Link>
       ),
@@ -109,7 +137,7 @@ const handleClick = (key: string) => {
     {
       title: "Action",
       dataIndex: "Action",
-      render: () => (
+      render: (_: any, record: any) => (
         <div className="dropdown table-action">
           <Link
             href="#"
@@ -139,7 +167,7 @@ const handleClick = (key: string) => {
             >
               <i className="ti ti-trash" /> Delete
             </Link>
-            <Link className="dropdown-item" href={all_routes.dealsDetails}>
+            <Link className="dropdown-item" href={`/crm/deals-details/${record.key}`}>
               <i className="ti ti-eye text-blue-light" /> Preview
             </Link>
           </div>
@@ -153,6 +181,7 @@ const handleClick = (key: string) => {
 
   const handleSearch = (value: string) => {
     setSearchText(value);
+    loadDeals(value);
   };
   return (
     <>
@@ -165,10 +194,34 @@ const handleClick = (key: string) => {
           {/* Page Header */}
           <PageHeader
             title="Deals"
-            badgeCount={125}
+            badgeCount={totalDeals || dealsData.length}
             showModuleTile={false}
             showExport={true}
           />
+          {/* Scarlett CRM Live Data Badge */}
+          {!loading && (
+            <div className="d-flex align-items-center gap-2 px-3 pb-2">
+              <span
+                className={`badge rounded-pill fs-11 ${
+                  dataSource === 'live'
+                    ? 'bg-success'
+                    : 'bg-secondary'
+                }`}
+              >
+                <i className={`ti ${
+                  dataSource === 'live' ? 'ti-plug-connected' : 'ti-database'
+                } me-1`} />
+                {dataSource === 'live' ? 'Live — Scarlett CRM' : 'Static — Scarlett CRM (API unavailable)'}
+              </span>
+            </div>
+          )}
+          {loading && (
+            <div className="d-flex align-items-center gap-2 px-3 pb-2">
+              <span className="badge rounded-pill bg-info fs-11">
+                <i className="ti ti-loader-2 me-1" />Syncing Scarlett CRM…
+              </span>
+            </div>
+          )}
           {/* End Page Header */}
           {/* card start */}
           <div className="card border-0 rounded-0">

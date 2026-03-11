@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/pipelines
  * Handles GET (list) and POST (create) operations for pipelines

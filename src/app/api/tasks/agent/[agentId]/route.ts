@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/tasks/agent/[agentId]
  * Handles GET operations for tasks assigned to a specific agent

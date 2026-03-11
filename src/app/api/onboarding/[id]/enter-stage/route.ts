@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/onboarding/[id]/enter-stage
  * Handles POST - Move agent to a specific stage and assign tasks

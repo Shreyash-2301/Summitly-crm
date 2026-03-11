@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/tasks
  * Handles GET (list all) and POST (create) operations for tasks

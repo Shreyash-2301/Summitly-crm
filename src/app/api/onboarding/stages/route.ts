@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/onboarding/stages
  * Returns agents grouped by their current pipeline stage

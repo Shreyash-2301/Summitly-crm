@@ -7,7 +7,11 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate dev --name scarlett-deals-cache",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "sync:scarlett": "node -e \"fetch('http://localhost:3000/api/scarlett-sync').then(r=>r.json()).then(d=>{console.log('\\n=== Sync Result ===');console.log('Status:', d.runStatus);console.log('Deals found:', d.dealsFound);console.log('Deals upserted:', d.dealsUpserted);console.log('Windows:', d.windowsSucceeded+'/'+d.windowsAttempted);if(d.errors?.length){console.log('Errors:',d.errors.join('\\n'));}console.log('\\n--- Log ---');(d.logs||[]).forEach(l=>console.log(l));}).catch(e=>console.error('Sync call failed:',e.message))\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

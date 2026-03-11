@@ -3,7 +3,7 @@
 import Footer from "@/core/common/footer/footer";
 import PageHeader from "@/core/common/page-header/pageHeader";
 import SearchInput from "@/core/common/dataTable/dataTableSearch";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Datatable from "@/core/common/dataTable";
 import PredefinedDatePicker from "@/core/common/common-dateRangePicker/PredefinedDatePicker";
 import { campaignListData } from "../../../../core/json/campaignListData";
@@ -12,13 +12,55 @@ import ModalCampaign from "./modal/modalCampaign";
 import CommonDatePicker from "@/core/common/common-datePicker/commonDatePicker";
 import Link from "next/link";
 import { all_routes } from "@/router/all_routes";
+import type { ScarlettCampaignRecord } from "@/core/types/scarlettDeal";
 
 const CampaignComponent = () => {
   const [searchText, setSearchText] = useState<string>("");
+  const [campaignData, setCampaignData] = useState<any[]>(campaignListData);
+  const [dataSource, setDataSource] = useState<'live' | 'fallback'>('fallback');
+  const [loadingArticles, setLoadingArticles] = useState(true);
 
   const handleSearch = (value: string) => {
     setSearchText(value);
   };
+
+  // -----------------------------------------------------------------------
+  // Fetch live Scarlett CRM blog articles on mount
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    async function loadScarlettArticles() {
+      try {
+        const res  = await fetch('/api/scarlett-articles?limit=20');
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          // Merge live Scarlett articles at the top, keep static fallbacks below
+          const liveRows = (json.data as ScarlettCampaignRecord[]).map((a) => ({
+            key:       a.key,
+            Name:      a.Name,
+            Type:      a.Type,
+            Progress1: a.Progress1,
+            Progress2: a.Progress2,
+            Progress3: a.Progress3,
+            Progress4: a.Progress4,
+            Progress5: a.Progress5,
+            Members:   a.Members,
+            Status:    a.Status,
+            _link:     a._link,
+            _excerpt:  a._excerpt,
+            _date:     a._date,
+          }));
+          setCampaignData(liveRows);
+          setDataSource(json.source ?? 'live');
+        }
+      } catch (err) {
+        console.error('[CampaignComponent] fetch error:', err);
+      } finally {
+        setLoadingArticles(false);
+      }
+    }
+    loadScarlettArticles();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [filledStars, setFilledStars] = useState<{ [key: string]: boolean }>(
     {}
@@ -30,7 +72,15 @@ const CampaignComponent = () => {
       [key]: !prev[key], // toggle on/off
     }));
   };
-  const data = campaignListData;
+
+  const filteredData = searchText
+    ? campaignData.filter((d) =>
+        d.Name.toLowerCase().includes(searchText.toLowerCase()) ||
+        d.Type.toLowerCase().includes(searchText.toLowerCase()),
+      )
+    : campaignData;
+
+  const data = filteredData;
   const columns = [
     {
       title: "",
@@ -50,6 +100,28 @@ const CampaignComponent = () => {
     {
       title: "Name",
       dataIndex: "Name",
+      render: (text: string, record: any) => (
+        <div>
+          {record._link ? (
+            <Link
+              href={record._link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="fw-semibold text-dark"
+              title={record._excerpt ?? text}
+            >
+              {text}
+            </Link>
+          ) : (
+            <span className="fw-semibold">{text}</span>
+          )}
+          {record._date && (
+            <p className="fs-11 text-muted mb-0 mt-1">
+              {new Date(record._date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </p>
+          )}
+        </div>
+      ),
       sorter: (a: any, b: any) => a.Name.length - b.Name.length,
     },
     {
@@ -185,6 +257,29 @@ const CampaignComponent = () => {
             showModuleTile={false}
             showExport={true}
           />
+          {/* Scarlett CRM data source badge */}
+          {loadingArticles ? (
+            <div className="d-flex align-items-center gap-2 px-1 pb-2">
+              <span className="badge rounded-pill bg-info fs-11">
+                <i className="ti ti-loader-2 me-1" />Syncing Scarlett CRM articles…
+              </span>
+            </div>
+          ) : (
+            <div className="d-flex align-items-center gap-2 px-1 pb-2">
+              <span
+                className={`badge rounded-pill fs-11 ${
+                  dataSource === 'live' ? 'bg-success' : 'bg-secondary'
+                }`}
+              >
+                <i className={`ti ${
+                  dataSource === 'live' ? 'ti-plug-connected' : 'ti-database'
+                } me-1`} />
+                {dataSource === 'live'
+                  ? `Live — ${data.length} articles from Scarlett CRM`
+                  : 'Static — Scarlett CRM (articles unavailable)'}
+              </span>
+            </div>
+          )}
           {/* End Page Header */}
           {/* row start */}
           <div className="row">

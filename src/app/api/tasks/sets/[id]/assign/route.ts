@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/tasks/sets/[id]/assign
  * Handles POST - Assign a task set to an agent

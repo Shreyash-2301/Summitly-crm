@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/delete-requests/[id]
  * Handles GET, PUT (approve/reject), and DELETE operations for a specific delete request

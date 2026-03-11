@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/tasks/sets/[id]
  * Handles GET (get one), PUT (update), and DELETE operations for Task Sets

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/permissions
  * Handles GET (list) and POST (create) operations for permissions

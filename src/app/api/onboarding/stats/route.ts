@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/onboarding/stats
  * Returns onboarding statistics for the LaunchPad dashboard
@@ -125,7 +127,6 @@ export async function GET(request: NextRequest) {
     });
 
     // Overdue tasks - tasks past their due date and not completed
-    const now = new Date();
     const overdueTasks = await prisma.task.count({
       where: {
         dueDate: {

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/pipelines/[id]/stages/[stageId]/task-sets
  * Handles GET (list task sets for stage) and POST (assign task set to stage)

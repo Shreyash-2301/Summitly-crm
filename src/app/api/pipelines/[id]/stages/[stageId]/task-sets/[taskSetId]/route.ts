@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/pipelines/[id]/stages/[stageId]/task-sets/[taskSetId]
  * Handles PUT (update assignment) and DELETE (remove task set from stage)

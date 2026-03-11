@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/onboarding/[id]/current-stage
  * Handles GET - Get current stage information for an agent

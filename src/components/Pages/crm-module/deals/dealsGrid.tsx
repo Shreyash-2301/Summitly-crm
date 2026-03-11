@@ -3,279 +3,174 @@
 import Footer from "@/core/common/footer/footer";
 import PageHeader from "@/core/common/page-header/pageHeader";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ImageWithBasePath from "@/core/common/imageWithBasePath";
-
+import type { NormalizedScarlettDeal } from "@/core/types/scarlettDeal";
 import ModalDeals from "./modal/modalDeals";
 import Link from "next/link";
 import { all_routes } from "@/router/all_routes";
 
+interface KanbanCard {
+  id: string;
+  avatar: { text: string; color: string };
+  name: string;
+  amount: string;
+  email: string;
+  phone: string;
+  location: string;
+  owner: { name: string; img: string };
+  progress: { value: number; color: string };
+  date: string;
+  highlighted?: boolean;
+}
+
+interface KanbanColumn {
+  id: string;
+  title: string;
+  leads: number;
+  amount: string;
+  cards: KanbanCard[];
+}
+
 const DealsGridComponent = () => {
   // Kanban data
-  const initialColumns = [
+  const initialColumns: KanbanColumn[] = [
     {
       id: "qualify",
       title: "Qualify To Buy",
-      leads: 45,
-      amount: "$15,44,540",
-      cards: [
-        {
-          id: "1",
-          avatar: { text: "HT", color: "success" },
-          name: "Howell, Tremblay and Rath",
-          amount: "$03,50,000",
-          email: "darleeo@example.com",
-          phone: "+1 12445-47878",
-          location: "Newyork, United States",
-          owner: {
-            name: "Darlee Robertson",
-            img: "assets/img/profiles/avatar-19.jpg",
-          },
-          progress: { value: 85, color: "success" },
-          date: "10 Jan 2024",
-        },
-        {
-          id: "2",
-          avatar: { text: "RJ", color: "warning" },
-          name: "Robert, John and Carlos",
-          amount: "$02,10,000",
-          email: "sheron@example.com",
-          phone: "+1 12445-47878",
-          location: "Exeter, United States",
-          owner: {
-            name: "Sharon Roy",
-            img: "assets/img/profiles/avatar-20.jpg",
-          },
-          progress: { value: 15, color: "warning" },
-          date: "12 Jan 2024",
-        },
-        {
-          id: "3",
-          avatar: { text: "WS", color: "info" },
-          name: "Wendy, Star and David",
-          amount: "$04,22,000",
-          email: "vau@example.com",
-          phone: "+1 12445-47878",
-          location: "Phoenix, United States",
-          owner: {
-            name: "Vaughan Lewis",
-            img: "assets/img/profiles/avatar-21.jpg",
-          },
-          progress: { value: 95, color: "info" },
-          date: "14 Jan 2024",
-        },
-      ],
+      leads: 0,
+      amount: "$0",
+      cards: [],
     },
     {
       id: "contact",
       title: "Contact Made",
-      leads: 30,
-      amount: "$19,94,938",
-      cards: [
-        {
-          id: "4",
-          avatar: { text: "BR", color: "danger" },
-          name: "Byron, Roman and Bailey",
-          amount: "$02,45,000",
-          email: "jessica13@example.com",
-          phone: "+1 89351-90346",
-          location: "Chester, United States",
-          owner: {
-            name: "Jessica Louise",
-            img: "assets/img/profiles/avatar-01.jpg",
-          },
-          progress: { value: 47, color: "danger" },
-          date: "06 Feb 2024",
-        },
-        {
-          id: "5",
-          avatar: { text: "RJ", color: "success" },
-          name: "Robert, John and Carlos",
-          amount: "$01,17,000",
-          email: "caroltho3@example.com",
-          phone: "+1 78982-09163",
-          location: "Charlotte, United States",
-          owner: {
-            name: "Carol Thomas",
-            img: "assets/img/profiles/avatar-16.jpg",
-          },
-          progress: { value: 98, color: "success" },
-          date: "15 Jan 2024",
-        },
-        {
-          id: "6",
-          avatar: { text: "IC", color: "danger" },
-          name: "Irene, Charles and Wilston",
-          amount: "$02,12,000",
-          email: "dawnmercha@example.com",
-          phone: "+1 27691-89246",
-          location: "Bristol, United States",
-          owner: {
-            name: "Dawn Mercha",
-            img: "assets/img/profiles/avatar-22.jpg",
-          },
-          progress: { value: 95, color: "danger" },
-          date: "25 Jan 2024",
-        },
-      ],
+      leads: 0,
+      amount: "$0",
+      cards: [],
     },
     {
-      id: "presentation",
-      title: "Presentation",
-      leads: 25,
-      amount: "$10,36,390",
-      cards: [
-        {
-          id: "7",
-          avatar: { text: "HT", color: "info" },
-          name: "Jody, Powell and Cecil",
-          amount: "$01,84,043",
-          email: "rachel@example.com",
-          phone: "+1 17839-93617",
-          location: "Baltimore, United States",
-          owner: {
-            name: "Rachel Hampton",
-            img: "assets/img/profiles/avatar-23.jpg",
-          },
-          progress: { value: 25, color: "info" },
-          date: "18 Mar 2024",
-        },
-        {
-          id: "8",
-          avatar: { text: "BL", color: "danger" },
-          name: "Bonnie, Linda and Mullin",
-          amount: "$09,35,189",
-          email: "jonelle@example.com",
-          phone: "+1 16739-47193",
-          location: "Coventry, United States",
-          owner: {
-            name: "Jonelle Curtiss",
-            img: "assets/img/profiles/avatar-24.jpg",
-          },
-          progress: { value: 70, color: "danger" },
-          date: "15 Feb 2024",
-        },
-        {
-          id: "9",
-          avatar: { text: "CJ", color: "success" },
-          name: "Carlos, Jones and Jim",
-          amount: "$04,27,940",
-          email: "jonathan@example.com",
-          phone: "+1 18390-37153",
-          location: "Seattle",
-          owner: {
-            name: "Jonathan Smith",
-            img: "assets/img/profiles/avatar-25.jpg",
-          },
-          progress: { value: 45, color: "success" },
-          date: "30 Jan 2024",
-        },
-      ],
+      id: "appraisal",
+      title: "Appraisal",
+      leads: 0,
+      amount: "$0",
+      cards: [],
     },
     {
-      id: "proposal",
-      title: "Proposal Made",
-      leads: 50,
-      amount: "$18,83,013",
-      cards: [
-        {
-          id: "10",
-          avatar: { text: "FJ", color: "info" },
-          name: "Freda,Jennfier and Thompson",
-          amount: "$04,17,593",
-          email: "sidney@example.com",
-          phone: "+1 11739-38135",
-          location: "London, United States",
-          owner: {
-            name: "Sidney Franks",
-            img: "assets/img/profiles/avatar-17.jpg",
-          },
-          progress: { value: 59, color: "info" },
-          date: "11 Apr 2024",
-        },
-        {
-          id: "11",
-          avatar: { text: "BF", color: "danger" },
-          name: "Bruce, Faulkner and Lela",
-          amount: "$08,81,389",
-          email: "brook@example.com",
-          phone: "+1 19302-91043",
-          location: "Detroit, United State",
-          owner: {
-            name: "Brook Carter",
-            img: "assets/img/profiles/avatar-26.jpg",
-          },
-          progress: { value: 72, color: "danger" },
-          date: "17 Apr 2024",
-        },
-        {
-          id: "12",
-          avatar: { text: "LP", color: "danger" },
-          name: "Lawrence, Patrick and Vandorn",
-          amount: "$09,27,193",
-          email: "mickey@example.com",
-          phone: "+1 17280-92016",
-          location: "Manchester, United States",
-          owner: { name: "Mickey", img: "assets/img/profiles/avatar-15.jpg" },
-          progress: { value: 20, color: "danger" },
-          date: "10 Feb 2024",
-        },
-      ],
+      id: "underwriting",
+      title: "Underwriting",
+      leads: 0,
+      amount: "$0",
+      cards: [],
     },
     {
-      id: "appointment",
-      title: "Appointment",
-      leads: 45,
-      amount: "$15,44,540",
-      cards: [
-        {
-          id: "13",
-          avatar: { text: "HT", color: "danger" },
-          name: "Howell, Tremblay and Rath",
-          amount: "$04,17,593",
-          email: "sidney@example.com",
-          phone: "+1 11739-38135",
-          location: "London, United States",
-          owner: {
-            name: "Sidney Franks",
-            img: "assets/img/profiles/avatar-17.jpg",
-          },
-          progress: { value: 59, color: "danger" },
-          date: "11 Apr 2024",
-        },
-        {
-          id: "14",
-          avatar: { text: "BF", color: "danger" },
-          name: "Bruce, Faulkner and Lela",
-          amount: "$08,81,389",
-          email: "brook@example.com",
-          phone: "+1 19302-91043",
-          location: "Detroit, United State",
-          owner: {
-            name: "Brook Carter",
-            img: "assets/img/profiles/avatar-26.jpg",
-          },
-          progress: { value: 72, color: "danger" },
-          date: "17 Apr 2024",
-        },
-        {
-          id: "15",
-          avatar: { text: "LP", color: "info" },
-          name: "Lawrence, Patrick and Vandorn",
-          amount: "$09,27,193",
-          email: "mickey@example.com",
-          phone: "+1 17280-92016",
-          location: "Manchester, United States",
-          owner: { name: "Mickey", img: "assets/img/profiles/avatar-15.jpg" },
-          progress: { value: 20, color: "info" },
-          date: "10 Feb 2024",
-        },
-      ],
+      id: "final-approval",
+      title: "Final Approval",
+      leads: 0,
+      amount: "$0",
+      cards: [],
+    },
+    {
+      id: "closed-won",
+      title: "Closed Won",
+      leads: 0,
+      amount: "$0",
+      cards: [],
+    },
+    {
+      id: "lost",
+      title: "Lost",
+      leads: 0,
+      amount: "$0",
+      cards: [],
     },
   ];
 
+  // -----------------------------------------------------------------------
+  // Scarlett CRM live data: fetch grouped by stage so every column is correct
+  // -----------------------------------------------------------------------
+  const [liveColumns, setLiveColumns]   = useState(initialColumns);
+  const [dataSource,  setDataSource]    = useState<'live' | 'fallback'>('fallback');
+  const [loading,     setLoading]       = useState(true);
+  const [searchQuery, setSearchQuery]   = useState('');
+  const [totalDeals,  setTotalDeals]    = useState(0);
+  const [lastSync,    setLastSync]      = useState<string | null>(null);
+
+  /** Scarlett stage name → kanban column id */
+  const STAGE_TO_COL: Record<string, string> = {
+    'Qualify To Buy': 'qualify',
+    'Contact Made':   'contact',
+    'Appraisal':      'appraisal',
+    'Underwriting':   'underwriting',
+    'Final Approval': 'final-approval',
+    'Closed Won':     'closed-won',
+    'Lost':           'lost',
+  };
+
+  function dealsToCards(deals: NormalizedScarlettDeal[], highlight: string): KanbanCard[] {
+    return deals.map((d, i) => {
+      const initials  = d.DealName.split(' ').map((w) => w[0] ?? '').join('').substring(0, 2).toUpperCase();
+      const colors    = ['success', 'warning', 'info', 'danger', 'purple'];
+      const color     = colors[i % colors.length];
+      const prob      = parseFloat(String(d.Probability).replace('%', '').trim()) || 50;
+      const probColor = prob >= 70 ? 'success' : prob >= 40 ? 'info' : 'danger';
+      const isHighlighted = highlight.length > 0 && d.DealName.toLowerCase().includes(highlight.toLowerCase());
+      return {
+        id:       d.key,
+        avatar:   { text: initials || 'D', color: isHighlighted ? 'warning' : color },
+        name:     d.DealName,
+        amount:   d.DealValue,
+        email:    d.Email || 'N/A',
+        phone:    d.Phone || 'N/A',
+        location: d.PropertyAddress || 'Scarlett CRM',
+        owner:    { name: d.DealName, img: 'assets/img/profiles/avatar-19.jpg' },
+        progress: { value: Math.min(100, Math.max(0, prob)), color: probColor },
+        date:     d.ExpectedCloseDate,
+        highlighted: isHighlighted,
+      } as KanbanCard & { highlighted?: boolean };
+    });
+  }
+
+  async function loadKanbanDeals(search = '') {
+    setLoading(true);
+    try {
+      const url = `/api/scarlett-deals?grouped=true&limit=50${search ? `&search=${encodeURIComponent(search)}` : ''}`;
+      const res  = await fetch(url);
+      const json = await res.json();
+      if (!json.success || !json.groups) return;
+
+      const groups: Record<string, { total: number; cards: NormalizedScarlettDeal[] }> = json.groups;
+
+      setLiveColumns((prev) =>
+        prev.map((col) => {
+          // Find the Scarlett stage key that maps to this column
+          const stageKey = Object.keys(STAGE_TO_COL).find((k) => STAGE_TO_COL[k] === col.id);
+          const group    = stageKey ? groups[stageKey] : null;
+          return {
+            ...col,
+            leads:  group ? group.total  : 0,
+            amount: group && group.total > 0 ? `${group.total} deals` : '$0',
+            cards:  group ? dealsToCards(group.cards, search) : [],
+          };
+        })
+      );
+      setDataSource(json.source ?? 'fallback');
+      setTotalDeals(json.grandTotal ?? 0);
+      setLastSync(json.lastSync ? new Date(json.lastSync).toLocaleString() : null);
+    } catch (err) {
+      console.error('[DealsGridComponent] fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadKanbanDeals();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function KanbanBoard() {
-    const [columns, setColumns] = useState(initialColumns);
+    const [columns, setColumns] = useState(liveColumns);
 
     // Drag and drop handler
     const onDragEnd = (result: any) => {
@@ -398,12 +293,28 @@ const DealsGridComponent = () => {
                               opacity: snapshot.isDragging ? 0.8 : 1,
                             }}
                           >
-                            <div className="card kanban-card border mb-0 mt-3 shadow">
+                            <div
+                              className={`card kanban-card mb-0 mt-3 ${
+                                (card as any).highlighted
+                                  ? 'border border-warning shadow-lg'
+                                  : 'border shadow'
+                              }`}
+                              style={(card as any).highlighted ? { boxShadow: '0 0 0 3px rgba(255,193,7,0.55)', transition: 'box-shadow 0.2s' } : {}}
+                            >
                               <div className="card-body">
                                 <div className="d-block">
                                   <div className="d-flex align-items-center mb-3">
+                                    {(card as any).highlighted && (
+                                      <span
+                                        className="badge bg-warning text-dark me-2 py-1 px-2 rounded-pill"
+                                        style={{ fontSize: 10 }}
+                                        title="Search match"
+                                      >
+                                        <i className="ti ti-search me-1" />Match
+                                      </span>
+                                    )}
                                     <Link
-                                        href={all_routes.dealsDetails}
+                                        href={`/crm/deals-details/${card.id}`}
                                       className={`avatar bg-soft-${card.avatar.color} text-${card.avatar.color} rounded-circle flex-shrink-0 me-2`}
                                     >
                                       <span
@@ -413,7 +324,7 @@ const DealsGridComponent = () => {
                                       </span>
                                     </Link>
                                     <h6 className="fw-medium fs-14 mb-0">
-                                        <Link href={all_routes.dealsDetails}>
+                                        <Link href={`/crm/deals-details/${card.id}`}>
                                         {card.name}
                                       </Link>
                                     </h6>
@@ -515,10 +426,36 @@ const DealsGridComponent = () => {
           {/* Page Header */}
           <PageHeader
             title="Deals"
-            badgeCount={125}
+            badgeCount={totalDeals || 125}
             showModuleTile={false}
             showExport={true}
           />
+          {/* Scarlett CRM data source badge */}
+          <div className="d-flex align-items-center gap-2 px-1 pb-2 flex-wrap">
+            {loading ? (
+              <span className="badge rounded-pill bg-info fs-11">
+                <i className="ti ti-loader-2 me-1" />Loading Scarlett CRM…
+              </span>
+            ) : (
+              <span
+                className={`badge rounded-pill fs-11 ${
+                  dataSource === 'live' ? 'bg-success' : 'bg-warning text-dark'
+                }`}
+              >
+                <i className={`ti ${
+                  dataSource === 'live' ? 'ti-plug-connected' : 'ti-alert-triangle'
+                } me-1`} />
+                {dataSource === 'live'
+                  ? `Live — Scarlett CRM · ${totalDeals.toLocaleString()} deals`
+                  : 'Demo data — Scarlett has no deals endpoint'}
+              </span>
+            )}
+            {!loading && lastSync && (
+              <span className="badge rounded-pill bg-light text-muted border fs-11">
+                <i className="ti ti-clock me-1" />Last sync: {lastSync}
+              </span>
+            )}
+          </div>
           {/* End Page Header */}
           {/* table header */}
           <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
@@ -961,8 +898,25 @@ const DealsGridComponent = () => {
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Search"
+                  placeholder="Search deals, broker, email…"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    const q = e.target.value;
+                    setSearchQuery(q);
+                    loadKanbanDeals(q);
+                  }}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-link position-absolute end-0 top-50 translate-middle-y pe-2 text-muted"
+                    onClick={() => { setSearchQuery(''); loadKanbanDeals(''); }}
+                    title="Clear search"
+                    style={{ zIndex: 10 }}
+                  >
+                    <i className="ti ti-x" />
+                  </button>
+                )}
               </div>
             </div>
             <div className="d-flex align-items-center gap-2 flex-wrap">

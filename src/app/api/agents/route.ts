@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/agents
  * Handles GET (list all) and POST (create) operations

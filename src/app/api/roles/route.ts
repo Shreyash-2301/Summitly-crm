@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/roles
  * Handles GET (list) and POST (create) operations for roles

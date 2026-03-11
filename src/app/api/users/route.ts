@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/users
  * Handles GET (list) and POST (create) operations for users

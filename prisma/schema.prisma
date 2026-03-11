@@ -648,3 +648,80 @@ model DeleteRequest {
   @@index([requestedAt])
   @@map("delete_requests")
 }
+
+// ============================================
+// Scarlett CRM Sync — Deals Cache
+// ============================================
+
+/// One row per unique mortgage deal pulled from Scarlett Network.
+/// Populated / updated by the hourly sync job (/api/scarlett-sync).
+model ScarlettDeal {
+  id                String   @id @default(uuid())
+
+  /// Unique deal key — matches ApplicationNumber from Scarlett
+  key               String   @unique
+
+  dealName          String   @map("deal_name")
+  stage             String   @default("Qualify To Buy")
+  dealValue         String   @default("$0")       @map("deal_value")
+  tags              String   @default("")
+  expectedCloseDate String?  @map("expected_close_date")
+  probability       String   @default("50%")
+  status            String   @default("Open")
+
+  // Contact info extracted from ApplicantGroups
+  email             String?
+  phone             String?
+
+  // Property / mortgage details
+  propertyAddress   String?  @map("property_address")
+  mortgageType      String?  @map("mortgage_type")
+  loanAmount        String?  @map("loan_amount")
+  applicationNumber String?  @map("application_number")
+  brokerName        String?  @map("broker_name")
+
+  /// Applicant full names (stored as text array)
+  applicants        String[] @default([])
+
+  /// Full raw JSON response from Scarlett — never truncated
+  rawData           Json?    @map("raw_data")
+
+  /// Timestamp of last successful sync for this record
+  syncedAt          DateTime @default(now()) @map("synced_at")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt       @map("updated_at")
+
+  @@index([stage])
+  @@index([status])
+  @@index([syncedAt])
+  @@map("scarlett_deals")
+}
+
+/// One log entry per sync run — tracks what happened, what failed, line-by-line.
+model ScarlettSyncLog {
+  id               String    @id @default(uuid())
+
+  startedAt        DateTime  @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+
+  /// 'running' | 'success' | 'partial' | 'failed'
+  runStatus        String    @default("running") @map("run_status")
+
+  windowsAttempted Int       @default(0) @map("windows_attempted")
+  windowsSucceeded Int       @default(0) @map("windows_succeeded")
+  dealsFound       Int       @default(0) @map("deals_found")
+  dealsUpserted    Int       @default(0) @map("deals_upserted")
+
+  /// Ordered structured log lines (ISO timestamp + level + message)
+  logs             String[]  @default([])
+
+  /// Any hard error messages that caused failures
+  errors           String[]  @default([])
+
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([startedAt])
+  @@index([runStatus])
+  @@map("scarlett_sync_logs")
+}

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/onboarding/[id]/complete-stage
  * Handles POST - Manually mark stage as complete (admin approval)

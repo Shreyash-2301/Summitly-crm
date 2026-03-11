@@ -8,9 +8,72 @@ import CommonSelect from "@/core/common/common-select/commonSelect"
 import ModalDealsDetails from "./modal/modalDealsDetails"
 import Link from "next/link"
 import { all_routes } from "@/router/all_routes"
+import { useState, useEffect } from "react"
+import type { NormalizedScarlettDeal } from "@/core/types/scarlettDeal"
 
+interface DealsDetailsProps {
+  dealKey?: string;
+}
 
-const DealsDetailsComponent = () => {
+const PIPELINE_STAGES = [
+  { label: 'Qualify To Buy', key: 'qualify to buy', color: 'bg-indigo' },
+  { label: 'Contact Made',   key: 'contact made',   color: 'bg-warning' },
+  { label: 'Appraisal',      key: 'appraisal',      color: 'bg-orange' },
+  { label: 'Underwriting',   key: 'underwriting',   color: 'bg-pink' },
+  { label: 'Final Approval', key: 'final approval', color: 'bg-purple' },
+  { label: 'Closed Won',     key: 'closed won',     color: 'bg-success' },
+  { label: 'Lost',           key: 'lost',           color: 'bg-danger' },
+];
+
+const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
+  const [deal, setDeal] = useState<NormalizedScarlettDeal | null>(null);
+  const [loading, setLoading] = useState(!!dealKey);
+
+  useEffect(() => {
+    if (!dealKey) return;
+    (async () => {
+      try {
+        const res  = await fetch(`/api/scarlett-deals?key=${encodeURIComponent(dealKey)}`);
+        const json = await res.json();
+        if (json.success && json.data?.length > 0) setDeal(json.data[0]);
+      } catch (e) {
+        console.error('[DealsDetailsComponent] fetch error:', e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [dealKey]);
+
+  // Derive display values from live deal (or fall back to demo values)
+  const dealName  = deal?.DealName ?? 'Tremblay and Rath';
+  const initials  = dealName.split(' ').map((w) => w[0] ?? '').join('').substring(0, 2).toUpperCase();
+  const dealValue = deal?.DealValue ?? '$25,11,145';
+  const probability = deal?.Probability ?? '80%';
+  const closeDate   = deal?.ExpectedCloseDate ?? '27 Sep 2025';
+  const stage       = deal?.Stage?.toLowerCase() ?? '';
+  const status      = deal?.Status ?? 'Open';
+  const tags        = deal ? (Array.isArray(deal.Tags) ? deal.Tags : [deal.Tags]).filter(Boolean) : ['Collab', 'VIP'];
+  const email           = deal?.Email ?? '';
+  const phone           = deal?.Phone ?? '';
+  const propertyAddress = deal?.PropertyAddress ?? '';
+  const mortgageType    = deal?.MortgageType ?? '';
+  const loanAmount      = deal?.LoanAmount ?? '';
+  const appNumber       = deal?.ApplicationNumber ?? '';
+  const brokerName      = deal?.BrokerName ?? '';
+  const applicants      = deal?.Applicants ?? [];
+
+  if (loading) {
+    return (
+      <div className="page-wrapper">
+        <div className="content d-flex align-items-center justify-content-center" style={{ minHeight: 300 }}>
+          <span className="badge rounded-pill bg-info fs-13">
+            <i className="ti ti-loader-2 me-1" />Loading deal…
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
    <>
   {/* ========================
@@ -40,20 +103,28 @@ const DealsDetailsComponent = () => {
               <div className="d-flex align-items-center justify-content-between flex-wrap">
                 <div className="d-flex align-items-center mb-2">
                   <div className="avatar avatar-xxl avatar-rounded border border-warning bg-soft-warning me-3 flex-shrink-0">
-                    <h6 className="mb-0 text-warning">HT</h6>
+                    <h6 className="mb-0 text-warning">{initials}</h6>
                   </div>
                   <div>
                     <h5 className="mb-1">
-                      Tremblay and Rath{" "}
+                      {dealName}{" "}
                       <i className="ti ti-star-filled text-warning" />
                     </h5>
-                    <p className="mb-1">
-                      <i className="ti ti-building-skyscraper me-1" />
-                      Google Inc
-                    </p>
+                    {email && (
+                      <p className="mb-1">
+                        <i className="ti ti-mail me-1" />
+                        {email}
+                      </p>
+                    )}
+                    {phone && (
+                      <p className="mb-1">
+                        <i className="ti ti-phone me-1" />
+                        {phone}
+                      </p>
+                    )}
                     <p className="mb-0">
                       <i className="ti ti-map-pin-pin me-1" />
-                      22, Ave Street, Newyork, USA
+                      {propertyAddress || 'Scarlett Network'}
                     </p>
                   </div>
                 </div>
@@ -65,13 +136,17 @@ const DealsDetailsComponent = () => {
                   <div className="dropdown">
                     <Link
                       href="#"
-                      className="btn btn-xs btn-success fs-12 py-1 px-2 fw-medium d-inline-flex align-items-center"
+                      className={`btn btn-xs fs-12 py-1 px-2 fw-medium d-inline-flex align-items-center ${
+                        status === 'Won' ? 'btn-success' : status === 'Lost' ? 'btn-danger' : 'btn-primary'
+                      }`}
                       data-bs-toggle="dropdown"
                       aria-expanded="false"
                     >
                       {" "}
-                      <i className="ti ti-thumb-up me-1" />
-                      Won
+                      <i className={`ti me-1 ${
+                        status === 'Won' ? 'ti-thumb-up' : status === 'Lost' ? 'ti-thumb-down' : 'ti-circle'
+                      }`} />
+                      {status}
                       <i className="ti ti-chevron-down ms-1" />{" "}
                     </Link>
                     <div className="dropdown-menu dropdown-menu-right">
@@ -95,30 +170,52 @@ const DealsDetailsComponent = () => {
             <div className="card-body p-3">
               <h6 className="mb-3 fw-semibold">Deals Information</h6>
               <div className="border-bottom mb-3 pb-3">
-                <div className="d-flex align-items-center justify-content-between mb-2">
-                  <p className="mb-0">Date Created</p>
-                  <p className="mb-0 text-dark"> 27 Sep 2025, 11:45 PM</p>
-                </div>
+                {appNumber && (
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <p className="mb-0">Application #</p>
+                    <p className="mb-0 text-dark fw-medium">{appNumber}</p>
+                  </div>
+                )}
                 <div className="d-flex align-items-center justify-content-between mb-2">
                   <p className="mb-0">Probability - Win</p>
-                  <p className="mb-0 text-dark">80%</p>
+                  <p className="mb-0 text-dark">{probability}</p>
                 </div>
                 <div className="d-flex align-items-center justify-content-between mb-2">
-                  <p className="mb-0">Deal Value</p>
-                  <p className="mb-0 text-dark">$25,11,145</p>
+                  <p className="mb-0">Property Value</p>
+                  <p className="mb-0 text-dark">{dealValue}</p>
+                </div>
+                {loanAmount && (
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <p className="mb-0">Loan Amount</p>
+                    <p className="mb-0 text-dark">{loanAmount}</p>
+                  </div>
+                )}
+                {mortgageType && (
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <p className="mb-0">Mortgage Type</p>
+                    <p className="mb-0 text-dark">{mortgageType}</p>
+                  </div>
+                )}
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <p className="mb-0">Expected Close</p>
+                  <p className="mb-0 text-dark">{closeDate}</p>
                 </div>
                 <div className="d-flex align-items-center justify-content-between mb-2">
-                  <p className="mb-0">Due Date </p>
-                  <p className="mb-0 text-dark"> 27 Sep 2025, 11:45 PM</p>
+                  <p className="mb-0">Stage</p>
+                  <p className="mb-0 text-dark">{deal?.Stage ?? 'N/A'}</p>
                 </div>
                 <div className="d-flex align-items-center justify-content-between mb-2">
-                  <p className="mb-0">Follow Up</p>
-                  <p className="mb-0 text-dark">27 Sep 2025</p>
+                  <p className="mb-0">Status</p>
+                  <span className={`badge ${
+                    status === 'Won' ? 'bg-success' : status === 'Lost' ? 'bg-danger' : 'bg-purple'
+                  }`}>{status}</span>
                 </div>
-                <div className="d-flex align-items-center justify-content-between mb-2">
-                  <p className="mb-0">Source</p>
-                  <p className="mb-0 text-dark">Google</p>
-                </div>
+                {propertyAddress && (
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <p className="mb-0">Property</p>
+                    <p className="mb-0 text-dark text-end" style={{ maxWidth: '55%' }}>{propertyAddress}</p>
+                  </div>
+                )}
               </div>
               <div className="d-flex align-items-center justify-content-between flex-wrap">
                 <h6 className="mb-3 fw-semibold">Deal Owner</h6>
@@ -132,48 +229,38 @@ const DealsDetailsComponent = () => {
                   Add New
                 </Link>
               </div>
-              <div className="mb-3">
-                <div className="d-flex align-items-center">
-                  <span className="avatar avatar-xs rounded-circle me-2">
-                    <ImageWithBasePath
-                      src="assets/img/users/avatar-3.jpg"
-                      alt=""
-                      className="img-fluid rounded-circle w-auto h-auto"
-                    />
-                  </span>
-                  <div>
-                    <p className="mb-0">Steve Vaughan</p>
-                  </div>
+              {applicants.length > 0 ? (
+                <div className="border-bottom mb-3 pb-3">
+                  {applicants.map((name, i) => (
+                    <div key={i} className="d-flex align-items-center mb-2">
+                      <span className="avatar avatar-xs rounded-circle me-2 bg-soft-primary">
+                        <span className="avatar-title text-primary fs-10">{name.split(' ').map((w) => w[0]).join('').substring(0,2).toUpperCase()}</span>
+                      </span>
+                      <div>
+                        <p className="mb-0">{name}</p>
+                        {i === 0 && email && <small className="text-muted">{email}</small>}
+                        {i === 0 && phone && <small className="text-muted d-block">{phone}</small>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-              <div className="border-bottom mb-3 pb-3">
-                <div className="d-flex align-items-center">
-                  <span className="avatar avatar-xs rounded-circle me-2">
-                    <ImageWithBasePath
-                      src="assets/img/users/avatar-4.jpg"
-                      alt=""
-                      className="img-fluid rounded-circle w-auto h-auto"
-                    />
-                  </span>
-                  <div>
-                    <p className="mb-0">Jessica Sen</p>
-                  </div>
+              ) : (
+                <div className="border-bottom mb-3 pb-3">
+                  <p className="text-muted mb-0">No applicants available</p>
                 </div>
-              </div>
+              )}
               <h6 className="mb-3 fw-semibold">Tags</h6>
               <div className="border-bottom mb-3 pb-3">
-                <Link
-                  href="#"
-                  className="badge badge-soft-success fw-medium me-2"
-                >
-                  Collab
-                </Link>
-                <Link
-                  href="#"
-                  className="badge badge-soft-warning fw-medium mb-0"
-                >
-                  VIP
-                </Link>
+                {tags.map((tag, i) => (
+                  <span
+                    key={i}
+                    className={`badge fw-medium me-2 ${
+                      i % 3 === 0 ? 'badge-soft-success' : i % 3 === 1 ? 'badge-soft-warning' : 'badge-soft-info'
+                    }`}
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
               <h6 className="mb-3 fw-semibold">Priority</h6>
               <div className="border-bottom mb-3 pb-3">
@@ -192,65 +279,21 @@ const DealsDetailsComponent = () => {
                   Margrate Design
                 </span>
               </div>
-              <div className="d-flex align-items-center justify-content-between flex-wrap">
-                <h6 className="mb-3 fw-semibold">Conracts</h6>
-                <Link
-                  href="#"
-                  className="link-primary mb-3"
-                  data-bs-toggle="modal"
-                  data-bs-target="#add_contact"
-                >
-                  <i className="ti ti-plus me-1" />
-                  Add New
-                </Link>
-              </div>
-              <div className="mb-3">
-                <div className="d-flex align-items-center">
-                  <span className="avatar avatar-xs rounded-circle me-2">
-                    <ImageWithBasePath
-                      src="assets/img/users/avatar-3.jpg"
-                      alt=""
-                      className="img-fluid rounded-circle w-auto h-auto"
-                    />
-                  </span>
-                  <div>
-                    <p className="mb-0">Steve Vaughan</p>
+              {brokerName && (
+                <>
+                  <h6 className="mb-3 fw-semibold">Broker / Agent</h6>
+                  <div className="border-bottom mb-3 pb-3">
+                    <div className="d-flex align-items-center">
+                      <span className="avatar avatar-xs rounded-circle me-2 bg-soft-warning">
+                        <span className="avatar-title text-warning fs-10">{brokerName.split(' ').map((w:string) => w[0]).join('').substring(0,2).toUpperCase()}</span>
+                      </span>
+                      <div>
+                        <p className="mb-0">{brokerName}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="mb-3">
-                <div className="d-flex align-items-center">
-                  <span className="avatar avatar-xs rounded-circle me-2">
-                    <ImageWithBasePath
-                      src="assets/img/users/avatar-4.jpg"
-                      alt=""
-                      className="img-fluid rounded-circle w-auto h-auto"
-                    />
-                  </span>
-                  <div>
-                    <p className="mb-0">Jessica Sen</p>
-                  </div>
-                </div>
-              </div>
-              <div className="d-flex align-items-center justify-content-between mb-2">
-                <p className="mb-0">Last Modified </p>
-                <p className="mb-0 text-dark"> 27 Sep 2025, 11:45 PM</p>
-              </div>
-              <div className="d-flex align-items-center justify-content-between mb-0">
-                <p className="mb-0">Modified By</p>
-                <div className="d-flex align-items-center">
-                  <span className="avatar avatar-xs rounded-circle me-2">
-                    <ImageWithBasePath
-                      src="assets/img/users/avatar-2.jpg"
-                      alt=""
-                      className="img-fluid rounded-circle w-auto h-auto"
-                    />
-                  </span>
-                  <div>
-                    <p className="mb-0">Darlee Robertson</p>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -260,11 +303,18 @@ const DealsDetailsComponent = () => {
           <div className="mb-3 pb-3 border-bottom">
             <h5 className="mb-3">Deals Pipeline Status</h5>
             <div className="step-progress d-flex flex-wrap gap-2">
-              <div className="step bg-indigo">Quality To Buy</div>
-              <div className="step bg-warning">Contact Made</div>
-              <div className="step bg-orange">Presentation</div>
-              <div className="step bg-pink">Proposal Made</div>
-              <div className="step appointment">Appointment</div>
+              {PIPELINE_STAGES.map((s) => {
+                const isActive = stage && (s.key === stage || stage.includes(s.key) || s.key.includes(stage));
+                return (
+                  <div
+                    key={s.key}
+                    className={`step ${isActive ? s.color : 'bg-light text-muted border'}`}
+                    style={isActive ? {} : { opacity: 0.55 }}
+                  >
+                    {s.label}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div className="card mb-3">

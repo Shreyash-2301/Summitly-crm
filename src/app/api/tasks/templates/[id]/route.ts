@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/tasks/templates/[id]
  * Handles GET (single template), PUT (update), and DELETE operations

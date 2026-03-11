@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/users/[id]
  * Handles GET (get single), PUT (update), and DELETE operations for a specific user
@@ -13,10 +15,10 @@ import bcrypt from 'bcryptjs';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const includeRole = request.nextUrl.searchParams.get('includeRole') === 'true';
 
     const user = await prisma.user.findUnique({
@@ -60,7 +62,7 @@ export async function GET(
         name: user.role.name,
         description: user.role.description || undefined,
         isActive: user.role.isActive,
-        permissions: user.role.permissions?.map((rp: any) => ({
+        permissions: (user.role as any).permissions?.map((rp: any) => ({
           id: rp.permission.id,
           name: rp.permission.name,
           description: rp.permission.description || undefined,
@@ -94,10 +96,10 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const {
       username,
@@ -270,10 +272,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Check if user exists
     const user = await prisma.user.findUnique({

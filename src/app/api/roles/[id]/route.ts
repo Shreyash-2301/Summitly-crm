@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/roles/[id]
  * Handles GET, PUT, and DELETE operations for a specific role
@@ -12,10 +14,10 @@ import { prisma } from '@/core/database/prisma';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const includePermissions = request.nextUrl.searchParams.get('includePermissions') !== 'false';
     const includeUserCount = request.nextUrl.searchParams.get('includeUserCount') === 'true';
 
@@ -84,10 +86,10 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const {
       name,
@@ -223,10 +225,10 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Check if role exists
     const role = await prisma.role.findUnique({

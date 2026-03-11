@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * API Route: /api/pipelines/[id]
  * Handles GET (single), PUT (update), and DELETE operations for pipelines
