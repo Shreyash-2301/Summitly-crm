@@ -65,13 +65,17 @@ export async function GET(request: NextRequest) {
     // -----------------------------------------------------------------------
     if (grouped) {
       const ALL_STAGES = [
-        'Qualify To Buy',
-        'Contact Made',
-        'Appraisal',
-        'Underwriting',
-        'Final Approval',
-        'Closed Won',
-        'Lost',
+        'New',
+        'Work in Progress',
+        'Submitted',
+        'Compliance Review',
+        'Approved',
+        'Ready to Close',
+        'Closed / Funded',
+        'Paid & Finalized',
+        'Renewed',
+        'Cancelled',
+        'Declined',
       ];
 
       const searchWhere = search
@@ -81,6 +85,8 @@ export async function GET(request: NextRequest) {
               { email:           { contains: search, mode: 'insensitive' as const } },
               { propertyAddress: { contains: search, mode: 'insensitive' as const } },
               { brokerName:      { contains: search, mode: 'insensitive' as const } },
+              { key:             { contains: search, mode: 'insensitive' as const } },
+              { tags:            { contains: search, mode: 'insensitive' as const } },
             ],
           }
         : {};
@@ -141,6 +147,8 @@ export async function GET(request: NextRequest) {
         { email:           { contains: search, mode: 'insensitive' } },
         { propertyAddress: { contains: search, mode: 'insensitive' } },
         { brokerName:      { contains: search, mode: 'insensitive' } },
+        { key:             { contains: search, mode: 'insensitive' } },
+        { tags:            { contains: search, mode: 'insensitive' } },
       ];
     }
 

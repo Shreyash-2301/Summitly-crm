@@ -35,55 +35,16 @@ interface KanbanColumn {
 const DealsGridComponent = () => {
   // Kanban data
   const initialColumns: KanbanColumn[] = [
-    {
-      id: "qualify",
-      title: "Qualify To Buy",
-      leads: 0,
-      amount: "$0",
-      cards: [],
-    },
-    {
-      id: "contact",
-      title: "Contact Made",
-      leads: 0,
-      amount: "$0",
-      cards: [],
-    },
-    {
-      id: "appraisal",
-      title: "Appraisal",
-      leads: 0,
-      amount: "$0",
-      cards: [],
-    },
-    {
-      id: "underwriting",
-      title: "Underwriting",
-      leads: 0,
-      amount: "$0",
-      cards: [],
-    },
-    {
-      id: "final-approval",
-      title: "Final Approval",
-      leads: 0,
-      amount: "$0",
-      cards: [],
-    },
-    {
-      id: "closed-won",
-      title: "Closed Won",
-      leads: 0,
-      amount: "$0",
-      cards: [],
-    },
-    {
-      id: "lost",
-      title: "Lost",
-      leads: 0,
-      amount: "$0",
-      cards: [],
-    },
+    { id: 'new',               title: 'New',               leads: 0, amount: '$0', cards: [] },
+    { id: 'work-in-progress',  title: 'Work in Progress',  leads: 0, amount: '$0', cards: [] },
+    { id: 'submitted',         title: 'Submitted',         leads: 0, amount: '$0', cards: [] },
+    { id: 'compliance-review', title: 'Compliance Review', leads: 0, amount: '$0', cards: [] },
+    { id: 'approved',          title: 'Approved',          leads: 0, amount: '$0', cards: [] },
+    { id: 'ready-to-close',    title: 'Ready to Close',    leads: 0, amount: '$0', cards: [] },
+    { id: 'closed-funded',     title: 'Closed / Funded',   leads: 0, amount: '$0', cards: [] },
+    { id: 'paid-finalized',    title: 'Paid & Finalized',  leads: 0, amount: '$0', cards: [] },
+    { id: 'cancelled',         title: 'Cancelled',         leads: 0, amount: '$0', cards: [] },
+    { id: 'declined',          title: 'Declined',          leads: 0, amount: '$0', cards: [] },
   ];
 
   // -----------------------------------------------------------------------
@@ -98,13 +59,17 @@ const DealsGridComponent = () => {
 
   /** Scarlett stage name → kanban column id */
   const STAGE_TO_COL: Record<string, string> = {
-    'Qualify To Buy': 'qualify',
-    'Contact Made':   'contact',
-    'Appraisal':      'appraisal',
-    'Underwriting':   'underwriting',
-    'Final Approval': 'final-approval',
-    'Closed Won':     'closed-won',
-    'Lost':           'lost',
+    'New':               'new',
+    'Work in Progress':  'work-in-progress',
+    'Submitted':         'submitted',
+    'Compliance Review': 'compliance-review',
+    'Approved':          'approved',
+    'Ready to Close':    'ready-to-close',
+    'Closed / Funded':   'closed-funded',
+    'Paid & Finalized':  'paid-finalized',
+    'Renewed':           'paid-finalized',
+    'Cancelled':         'cancelled',
+    'Declined':          'declined',
   };
 
   function dealsToCards(deals: NormalizedScarlettDeal[], highlight: string): KanbanCard[] {
@@ -114,7 +79,13 @@ const DealsGridComponent = () => {
       const color     = colors[i % colors.length];
       const prob      = parseFloat(String(d.Probability).replace('%', '').trim()) || 50;
       const probColor = prob >= 70 ? 'success' : prob >= 40 ? 'info' : 'danger';
-      const isHighlighted = highlight.length > 0 && d.DealName.toLowerCase().includes(highlight.toLowerCase());
+      const hl = highlight.toLowerCase();
+      const tagArr = Array.isArray(d.Tags) ? d.Tags : (d.Tags ? [String(d.Tags)] : []);
+      const isHighlighted = highlight.length > 0 && (
+        d.DealName.toLowerCase().includes(hl) ||
+        (d.key ?? '').toLowerCase().includes(hl) ||
+        tagArr.some((t: string) => t.toLowerCase().includes(hl))
+      );
       return {
         id:       d.key,
         avatar:   { text: initials || 'D', color: isHighlighted ? 'warning' : color },

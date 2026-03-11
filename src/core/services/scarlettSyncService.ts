@@ -156,15 +156,10 @@ function normalize(raw: any) {
     ? `$${propVal.toLocaleString('en-CA', { maximumFractionDigits: 0 })}`
     : '$0';
 
-  // Stage mapping
-  const appStatus = app?.strMortgageApplicationStatus ?? 'Unknown';
-  let stage = 'Qualify To Buy';
+  // Stage — store exact Scarlett status string
+  const appStatus = app?.strMortgageApplicationStatus ?? 'New';
+  const stage = appStatus || 'New';
   const s = appStatus.toLowerCase();
-  if (s.includes('work in progress') || s === 'active')        stage = 'Contact Made';
-  if (s.includes('submitted') || s.includes('review'))         stage = 'Underwriting';
-  if (s.includes('approved') || s.includes('conditional'))     stage = 'Final Approval';
-  if (s.includes('closed') || s.includes('complete'))          stage = 'Closed Won';
-  if (s.includes('cancelled') || s.includes('withdrawn'))      stage = 'Lost';
 
   // Key / application number
   const appNumber =
@@ -182,24 +177,33 @@ function normalize(raw: any) {
     .map((a: any) => `${a?.FirstName ?? ''} ${a?.LastName ?? ''}`.trim())
     .filter(Boolean);
 
-  // Property address
-  const addrParts = [
-    property?.StreetAddress ?? property?.Address ?? '',
-    property?.City    ?? '',
-    property?.Province ?? property?.State ?? '',
-    property?.PostalCode ?? property?.ZipCode ?? '',
-  ].filter(Boolean);
-  const propertyAddress = addrParts.join(', ');
+  // Property address — from structured Address object
+  const propertyAddress = property?.Address?.strFullAddress
+    ?? [
+        (property?.Address?.StreetNumber ?? '') + ' ' + (property?.Address?.StreetName ?? '') + ' ' + (property?.Address?.strStreetType ?? ''),
+        property?.Address?.City ?? '',
+        property?.Address?.strProvince ?? '',
+        (property?.Address?.PostalFsa ?? '') + ' ' + (property?.Address?.PostalLdu ?? ''),
+      ].map((s) => s.trim()).filter(Boolean).join(', ')
+    ?? '';
 
-  // Mortgage details
-  const mortgageType = deal?.strApplicationType ?? deal?.strDealPurpose ?? app?.strMortgageType ?? '';
-  const rawLoan  = Number(
-    app?.MortgageAmount ?? app?.LoanAmount ?? property?.PropertyMortgage?.MortgageAmount ?? 0,
-  );
+  // Mortgage details — from RequestedMortgages array
+  const reqMortgages: any[] = property?.PropertyMortgage?.RequestedMortgages ?? [];
+  const reqMort = reqMortgages[reqMortgages.length - 1] ?? null;
+  const mortgageType = deal?.strApplicationType ?? deal?.strDealPurpose ?? '';
+  const rawLoan = Number(reqMort?.TotalLoanAmount ?? reqMort?.Balance ?? reqMort?.RequestedMortgageAmount ?? 0);
   const loanAmount = rawLoan > 0
     ? `$${rawLoan.toLocaleString('en-CA', { maximumFractionDigits: 0 })}`
     : '';
-  const brokerName = app?.BrokerName ?? app?.AgentName ?? app?.AssignedTo ?? '';
+
+  // Broker / agent from AgentOnDeal or DealOwner contact
+  const agentOnDeal = app?.AgentOnDeal;
+  const dealOwnerContact = deal?.DealOwner?.Contact;
+  const brokerFirstName = dealOwnerContact?.ContactName?.FirstName ?? '';
+  const brokerLastName  = dealOwnerContact?.ContactName?.LastName  ?? '';
+  const brokerName = [brokerFirstName, brokerLastName].filter(Boolean).join(' ')
+    || agentOnDeal?.NotificationEmailAddress
+    || '';
 
   // Close date
   const closeDate = property?.PropertyMortgage?.ClosingDate
@@ -209,13 +213,18 @@ function normalize(raw: any) {
     : '';
 
   // Probability
-  const prob = s.includes('closed') || s.includes('complete') ? '100%'
+  const prob = (s.includes('paid') || s.includes('funded')) ? '100%'
+    : s.includes('closed') ? '95%'
+    : s.includes('ready') ? '90%'
     : s.includes('approved') ? '85%'
+    : s.includes('compliance') ? '75%'
     : s.includes('submitted') ? '70%'
+    : s.includes('work in progress') ? '50%'
+    : s.includes('new') ? '20%'
     : '50%';
 
   // Status
-  const status = s.includes('cancelled') || s.includes('withdrawn') ? 'Lost' : 'Open';
+  const status = (s.includes('cancelled') || s.includes('declined') || s.includes('withdrawn')) ? 'Lost' : 'Open';
 
   const tags = [deal?.ApplicationNumber ?? '', deal?.strDealPurpose ?? '', deal?.strApplicationType ?? '']
     .filter(Boolean).join(' | ');
