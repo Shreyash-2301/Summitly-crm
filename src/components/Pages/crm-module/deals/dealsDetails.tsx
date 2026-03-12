@@ -4,7 +4,7 @@ import Footer from "@/core/common/footer/footer";
 import PageHeader from "@/core/common/page-header/pageHeader";
 import Link from "next/link";
 import { all_routes } from "@/router/all_routes";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import type { NormalizedScarlettDeal } from "@/core/types/scarlettDeal";
 import ModalDealsDetails from "./modal/modalDealsDetails";
 
@@ -53,13 +53,25 @@ const TERMINAL_MAP: Record<string, { label: string; cls: string }> = {
   Renewed:   { label: 'Renewed',   cls: 'badge bg-teal'   },
 };
 
-// Small reusable row for sidebar info tables
+// Small reusable row for sidebar info tables (hides if no value)
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   if (!value || value === '—') return null;
   return (
     <div className="d-flex align-items-start justify-content-between mb-2 gap-2">
       <span className="text-muted" style={{ fontSize: 12, minWidth: '42%' }}>{label}</span>
       <span className="text-dark fw-medium text-end" style={{ fontSize: 12 }}>{value}</span>
+    </div>
+  );
+}
+
+// Always-visible row (shows '—' when empty) — used for management fields
+function InfoField({ label, value, badge }: { label: string; value?: string | null; badge?: ReactNode }) {
+  return (
+    <div className="d-flex align-items-start justify-content-between mb-2 gap-2">
+      <span className="text-muted" style={{ fontSize: 12, minWidth: '55%' }}>{label}</span>
+      <span className="text-dark fw-medium text-end" style={{ fontSize: 12 }}>
+        {badge ?? (value && value !== '—' ? value : <span className="text-muted fst-italic">—</span>)}
+      </span>
     </div>
   );
 }
@@ -78,6 +90,8 @@ function SectionHead({ icon, title }: { icon: string; title: string }) {
 const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
   const [deal, setDeal]       = useState<NormalizedScarlettDeal | null>(null);
   const [loading, setLoading] = useState(!!dealKey);
+  const [selectedApplicantIdx, setSelectedApplicantIdx] = useState(0);
+  const [activeLeftTab, setActiveLeftTab] = useState<'compliance' | 'accounting'>('compliance');
 
   useEffect(() => {
     if (!dealKey) return;
@@ -177,6 +191,13 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
   const totalAssets = fmt(finGroup?.TotalAssets,      'currency');
   const totalLiab   = fmt(finGroup?.TotalLiabilities, 'currency');
   const netWorth    = fmt(finGroup?.NetWorth,         'currency');
+  const downPayment = fmt(reqMort?.DownPaymentAmount ?? reqMort?.DownPayment ?? dealObj?.DownPaymentAmount, 'currency');
+  // Selected applicant (for left-sidebar applicant+property dropdowns)
+  const clampedIdx   = allApplicants.length > 0 ? Math.min(selectedApplicantIdx, allApplicants.length - 1) : 0;
+  const selApplicant = allApplicants[clampedIdx] ?? null;
+  const selApplicantName = selApplicant
+    ? [selApplicant.FirstName, selApplicant.LastName].filter(Boolean).join(' ') || `Applicant ${clampedIdx + 1}`
+    : '';
 
   // Pipeline bar logic
   const pipelineIdx = PIPELINE_STAGES.findIndex((s) => s.key === stage);
@@ -221,23 +242,34 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                         <h6 className="mb-0 text-warning">{initials}</h6>
                       </div>
                       <div>
-                        <h5 className="mb-1">{dealName}</h5>
-                        <div className="d-flex flex-wrap gap-3">
-                          {allApplicants.filter((a: any) => a?.EmailAddress).map((a: any, i: number) => (
-                            <span key={i} className="text-muted fs-12">
-                              <i className="ti ti-mail me-1" />{a.EmailAddress}
-                            </span>
-                          ))}
-                          {allApplicants.filter((a: any) => a?.CellPhone || a?.HomePhone).map((a: any, i: number) => (
-                            <span key={`p${i}`} className="text-muted fs-12">
-                              <i className="ti ti-phone me-1" />{a.CellPhone ?? a.HomePhone}
-                            </span>
-                          ))}
-                          {propAddress && (
-                            <span className="text-muted fs-12">
-                              <i className="ti ti-map-pin-pin me-1" />{propAddress}
-                            </span>
-                          )}
+                        <h5 className="mb-2">{dealName}</h5>
+                        <div className="d-flex flex-wrap gap-4">
+                          {/* Deal ID + Address */}
+                          <div>
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="ti ti-hash text-primary" style={{ fontSize: 13 }} />
+                              <span className="fw-semibold text-dark fs-13">{deal?.key ?? appNumber ?? '—'}</span>
+                            </div>
+                            {propAddress && (
+                              <div className="d-flex align-items-start gap-1">
+                                <i className="ti ti-map-pin text-muted mt-1" style={{ fontSize: 12 }} />
+                                <span className="text-muted fs-12" style={{ maxWidth: 300 }}>{propAddress}</span>
+                              </div>
+                            )}
+                          </div>
+                          {/* Loan Amount + Closing Date */}
+                          <div>
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="ti ti-coin text-success" style={{ fontSize: 13 }} />
+                              <span className="fw-semibold text-dark fs-13">{loanAmt !== '—' ? loanAmt : '$—'}</span>
+                            </div>
+                            <div className="d-flex align-items-center gap-1">
+                              <i className="ti ti-calendar text-muted" style={{ fontSize: 12 }} />
+                              <span className="text-muted fs-12">
+                                Closing: {closingDate !== '—' ? closingDate : fmt(deal?.ExpectedCloseDate, 'date')}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -264,121 +296,295 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
             {/* ── LEFT SIDEBAR ──────────────────────────────────────────────── */}
             <div className="col-xl-4">
 
-              {/* Application Info */}
+              {/* ── 1. KEY DETAILS ───────────────────────────────────────────── */}
               <div className="card mb-3">
                 <div className="card-body p-3">
-                  <SectionHead icon="ti-file-description" title="Application" />
-                  <InfoRow label="Application #"   value={appNumber} />
-                  <InfoRow label="Status"          value={appStatus} />
-                  <InfoRow label="Purpose"         value={purpose} />
-                  <InfoRow label="Type"            value={appType} />
-                  <InfoRow label="Applied"         value={appDate} />
-                  <InfoRow label="Last Updated"    value={lastUpdate} />
-                  <InfoRow label="Win Probability" value={deal?.Probability} />
-                  <InfoRow label="Closing Date"    value={closingDate !== '—' ? closingDate : fmt(deal?.ExpectedCloseDate, 'date')} />
-                </div>
-              </div>
-
-              {/* Loan Details */}
-              {loanAmt !== '—' && (
-                <div className="card mb-3">
-                  <div className="card-body p-3">
-                    <SectionHead icon="ti-coin" title="Loan Details" />
-                    <InfoRow label="Loan Amount"        value={loanAmt} />
-                    <InfoRow label="Interest Rate"      value={interestRate} />
-                    <InfoRow label="Monthly Payment"    value={monthlyPay + (interestOnly ? ' (interest only)' : '')} />
-                    <InfoRow label="Rate Type"          value={rateType} />
-                    <InfoRow label="Mortgage Type"      value={mortType} />
-                    <InfoRow label="Term"               value={fmt(termMonths, 'months')} />
-                    <InfoRow label="Amortization"       value={fmt(amortMonths, 'months')} />
-                    <InfoRow label="Payment Frequency"  value={payFreq} />
-                    <InfoRow label="First Payment"      value={firstPayment} />
-                    <InfoRow label="Maturity Date"      value={maturity} />
-                  </div>
-                </div>
-              )}
-
-              {/* Financial Ratios */}
-              {(ltv !== '—' || gds !== '—' || tds !== '—') && (
-                <div className="card mb-3">
-                  <div className="card-body p-3">
-                    <SectionHead icon="ti-chart-bar" title="Financial Ratios" />
+                  <SectionHead icon="ti-layout-list" title="Key Details" />
+                  <InfoField label="Application Purpose" value={purpose || appType || '—'} />
+                  <InfoField label="Total Income"        value={totalIncome} />
+                  <InfoField label="Total Assets"        value={totalAssets} />
+                  <InfoField label="Total Liabilities"   value={totalLiab} />
+                  <InfoField label="Net Worth"           value={netWorth} />
+                  <InfoField label="Total Down Payment"  value={downPayment} />
+                  <div className="pt-2 border-top mt-2">
                     {[
-                      { label: 'LTV', value: ltv, desc: 'Loan-to-Value',      warnAt: 80 },
-                      { label: 'GDS', value: gds, desc: 'Gross Debt Service', warnAt: 32 },
-                      { label: 'TDS', value: tds, desc: 'Total Debt Service', warnAt: 44 },
-                    ].map(({ label, value, desc, warnAt }) => {
+                      { label: 'Loan To Value (LTV)', value: ltv, warnAt: 80 },
+                      { label: 'GDS (Gross Debt Service)', value: gds, warnAt: 32 },
+                      { label: 'TDS (Total Debt Service)', value: tds, warnAt: 44 },
+                    ].map(({ label, value, warnAt }) => {
                       const num = parseFloat(value);
                       const ok  = isNaN(num) || num <= warnAt;
-                      return value !== '—' ? (
+                      return (
                         <div key={label} className="mb-3">
                           <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted fs-12">
-                              {label} <span className="fst-italic" style={{ fontSize: 10 }}>({desc})</span>
+                            <span className="text-muted" style={{ fontSize: 12 }}>{label}</span>
+                            <span className={`fw-bold fs-12 ${value !== '—' ? (ok ? 'text-success' : 'text-danger') : 'text-muted'}`}>
+                              {value !== '—' ? value : '—'}
                             </span>
-                            <span className={`fw-bold fs-12 ${ok ? 'text-success' : 'text-danger'}`}>{value}</span>
                           </div>
-                          <div className="progress" style={{ height: 4 }}>
-                            <div className={`progress-bar ${ok ? 'bg-success' : 'bg-danger'}`} style={{ width: `${Math.min(100, num)}%` }} />
-                          </div>
+                          {value !== '—' && (
+                            <div className="progress" style={{ height: 4 }}>
+                              <div className={`progress-bar ${ok ? 'bg-success' : 'bg-danger'}`} style={{ width: `${Math.min(100, num)}%` }} />
+                            </div>
+                          )}
                         </div>
-                      ) : null;
+                      );
                     })}
-                    <div className="pt-2 border-top mt-1">
-                      <InfoRow label="Total Income"      value={totalIncome} />
-                      <InfoRow label="Total Assets"      value={totalAssets} />
-                      <InfoRow label="Total Liabilities" value={totalLiab} />
-                      <InfoRow label="Net Worth"         value={netWorth} />
-                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Property Summary */}
-              <div className="card mb-3">
-                <div className="card-body p-3">
-                  <SectionHead icon="ti-home" title="Subject Property" />
-                  <InfoRow label="Address"        value={propAddress} />
-                  <InfoRow label="Dwelling"        value={dwellingType} />
-                  <InfoRow label="Property Type"  value={propType} />
-                  <InfoRow label="Occupancy"      value={occupancy} />
-                  <InfoRow label="Est. Value"     value={propValue} />
-                  <InfoRow label="Original Value" value={origValue} />
-                  <InfoRow label="Purchase Date"  value={purchaseDate} />
-                  <InfoRow label="Annual Taxes"   value={annualTaxes} />
-                  <InfoRow label="Living Space"   value={livingSpace} />
-                  <InfoRow label="Units"          value={numUnits} />
-                  <InfoRow label="Garage"         value={garage} />
                 </div>
               </div>
 
-              {/* Broker / Agent */}
-              {(brokerName || brokerBranch) && (
-                <div className="card mb-3">
-                  <div className="card-body p-3">
-                    <SectionHead icon="ti-user-check" title="Broker / Agent" />
-                    {brokerName && (
-                      <div className="d-flex align-items-center mb-2">
+              {/* ── 2. TEAM ROLES ────────────────────────────────────────────── */}
+              <div className="card mb-3">
+                <div className="card-body p-3">
+                  <SectionHead icon="ti-users" title="Team Roles" />
+                  {/* Agent(s) on Deal */}
+                  <div className="mb-2">
+                    <span className="text-muted d-block" style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Agent On Deal
+                    </span>
+                    {brokerName ? (
+                      <div className="d-flex align-items-center mt-1 gap-2">
                         <span
-                          className="avatar avatar-sm rounded-circle bg-soft-warning me-2 flex-shrink-0"
-                          style={{ width: 32, height: 32 }}
+                          className="avatar avatar-xs rounded-circle bg-soft-warning flex-shrink-0"
+                          style={{ width: 28, height: 28 }}
                         >
                           <span className="avatar-title text-warning fs-10 fw-bold">
                             {brokerName.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase()}
                           </span>
                         </span>
                         <div>
-                          <p className="mb-0 fw-medium fs-13">{brokerName}</p>
-                          {brokerLicense && <small className="text-muted">Lic: {brokerLicense}</small>}
+                          <p className="mb-0 fw-medium fs-12">{brokerName}</p>
+                          {brokerBranch && <small className="text-muted">{brokerBranch}</small>}
                         </div>
                       </div>
+                    ) : (
+                      <span className="text-muted fst-italic fs-12">—</span>
                     )}
-                    <InfoRow label="Branch" value={brokerBranch} />
-                    <InfoRow label="Email"  value={brokerEmail} />
-                    <InfoRow label="Phone"  value={brokerPhone} />
+                  </div>
+                  <div className="border-top pt-2 mt-1">
+                    <InfoField label="Assigned To"   value={null} />
+                    <InfoField label="Supervised By" value={null} />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 3. DEPOSIT & FEES ────────────────────────────────────────── */}
+              <div className="card mb-3">
+                <div className="card-body p-3">
+                  <SectionHead icon="ti-cash" title="Deposit & Fees" />
+                  <InfoField label="Deposit Amount Required" value={downPayment} />
+                  <InfoField label="Deposit Received On"    value={null} />
+                  <InfoField label="Brokerage Fee"          value={null} />
+                  <div className="border-top pt-2 mt-1">
+                    <InfoField label="Letter of Direction Signed"           value={null} />
+                    <InfoField label="Letter of Direction Sent to Lawyer"   value={null} />
+                    <InfoField label="Confirmation From Lawyer"             value={null} />
+                    <InfoField label="  └ Received On"                      value={null} />
+                    <InfoField label="Brokerage Fee Received"               value={null} />
+                    <InfoField label="  └ Received On"                      value={null} />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 4. APPLICANTS (dropdown) ─────────────────────────────────── */}
+              {allApplicants.length > 0 && (
+                <div className="card mb-3">
+                  <div className="card-body p-3">
+                    <SectionHead icon="ti-user-circle" title="Applicants" />
+                    {allApplicants.length > 1 && (
+                      <select
+                        className="form-select form-select-sm mb-3"
+                        value={clampedIdx}
+                        onChange={(e) => setSelectedApplicantIdx(Number(e.target.value))}
+                      >
+                        {allApplicants.map((a: any, i: number) => {
+                          const nm = [a?.FirstName, a?.LastName].filter(Boolean).join(' ') || `Applicant ${i + 1}`;
+                          return <option key={i} value={i}>{nm}{a?.PrimaryFlag ? ' (Primary)' : ''}</option>;
+                        })}
+                      </select>
+                    )}
+                    {selApplicant && (() => {
+                      const emp  = (selApplicant.EmploymentHistories ?? [])[0] ?? {};
+                      const dob  = fmt(selApplicant.DateOfBirth, 'date');
+                      return (
+                        <>
+                          <div className="d-flex align-items-center mb-3 gap-2">
+                            <span className="avatar avatar-sm rounded-circle bg-soft-primary flex-shrink-0" style={{ width: 36, height: 36 }}>
+                              <span className="avatar-title text-primary fw-bold fs-12">
+                                {selApplicantName.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase()}
+                              </span>
+                            </span>
+                            <div>
+                              <h6 className="mb-0 fs-13 fw-semibold">{selApplicantName}</h6>
+                              {selApplicant.PrimaryFlag && <span className="badge bg-success fs-10">Primary</span>}
+                            </div>
+                          </div>
+                          {selApplicant.EmailAddress && (
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="ti ti-mail text-primary" style={{ fontSize: 12 }} />
+                              <span className="fs-12">{selApplicant.EmailAddress}</span>
+                            </div>
+                          )}
+                          {selApplicant.CellPhone && (
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="ti ti-device-mobile text-primary" style={{ fontSize: 12 }} />
+                              <span className="fs-12">{selApplicant.CellPhone}</span>
+                            </div>
+                          )}
+                          {dob !== '—' && (
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="ti ti-cake text-muted" style={{ fontSize: 12 }} />
+                              <span className="fs-12 text-muted">DOB: {dob}</span>
+                            </div>
+                          )}
+                          {selApplicant.strMaritalStatus && (
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="ti ti-heart text-muted" style={{ fontSize: 12 }} />
+                              <span className="fs-12 text-muted">{selApplicant.strMaritalStatus}</span>
+                            </div>
+                          )}
+                          {emp.EmployerName && (
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="ti ti-building text-muted" style={{ fontSize: 12 }} />
+                              <span className="fs-12 text-muted">{emp.EmployerName}{emp.strOccupation ? ` — ${emp.strOccupation}` : ''}</span>
+                            </div>
+                          )}
+                          <div className="row g-2 mt-1 border-top pt-2">
+                            {[
+                              { label: 'Total Assets',      value: fmt(selApplicant.TotalAssets,      'currency') },
+                              { label: 'Total Liabilities', value: fmt(selApplicant.TotalLiabilities, 'currency') },
+                            ].filter(({ value }) => value !== '—').map(({ label, value }) => (
+                              <div key={label} className="col-6">
+                                <p className="text-muted fs-11 mb-0">{label}</p>
+                                <p className="fw-semibold fs-12 mb-0">{value}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
+
+              {/* ── 5. SUBJECT PROPERTY (single section with applicant context) */}
+              <div className="card mb-3">
+                <div className="card-body p-3">
+                  <div className="d-flex align-items-center justify-content-between mb-3">
+                    <h6 className="fw-semibold mb-0 d-flex align-items-center gap-1">
+                      <i className="ti ti-home text-primary" />Subject Property
+                    </h6>
+                    {allApplicants.length > 1 && (
+                      <select
+                        className="form-select form-select-sm"
+                        style={{ maxWidth: 130 }}
+                        value={clampedIdx}
+                        onChange={(e) => setSelectedApplicantIdx(Number(e.target.value))}
+                      >
+                        {allApplicants.map((a: any, i: number) => {
+                          const nm = [a?.FirstName, a?.LastName].filter(Boolean).join(' ') || `Applicant ${i + 1}`;
+                          return <option key={i} value={i}>{nm}</option>;
+                        })}
+                      </select>
+                    )}
+                  </div>
+                  {propAddress && (
+                    <div className="mb-2 p-2 rounded bg-light">
+                      <i className="ti ti-map-pin text-primary me-1" style={{ fontSize: 12 }} />
+                      <span className="fs-12 fw-medium">{propAddress}</span>
+                    </div>
+                  )}
+                  <InfoRow label="Freehold"       value={propType} />
+                  <InfoRow label="Occupancy"      value={occupancy} />
+                  <InfoRow label="Dwelling"       value={dwellingType} />
+                  <InfoRow label="Estimated Value" value={propValue} />
+                  <InfoRow label="Original Value"  value={origValue} />
+                  <InfoRow label="Purchase Date"   value={purchaseDate} />
+                  <InfoRow label="Annual Taxes"    value={annualTaxes} />
+                  <InfoRow label="Living Space"    value={livingSpace} />
+                  <InfoRow label="Units"           value={numUnits} />
+                  <InfoRow label="Garage"          value={garage} />
+                  <InfoRow label="Closing Date"    value={closingDate} />
+                </div>
+              </div>
+
+              {/* ── 6. COMPLIANCE & ACCOUNTING (tabbed card) ─────────────────── */}
+              <div className="card mb-3">
+                <div className="card-body p-2">
+                  <ul className="nav nav-tabs nav-sm border-0 mb-3" role="tablist">
+                    {(['compliance', 'accounting'] as const).map((tab) => (
+                      <li key={tab} className="nav-item" role="presentation">
+                        <button
+                          className={`nav-link border-0 py-2 px-3 fs-12 fw-medium${activeLeftTab === tab ? ' active' : ''}`}
+                          onClick={() => setActiveLeftTab(tab)}
+                          type="button"
+                        >
+                          {tab === 'compliance' ? (
+                            <><i className="ti ti-shield-check me-1" />Compliance</>
+                          ) : (
+                            <><i className="ti ti-calculator me-1" />Accounting</>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Compliance tab */}
+                  {activeLeftTab === 'compliance' && (
+                    <div className="px-1">
+                      <InfoField
+                        label="Compliance Status"
+                        badge={
+                          <span className="badge bg-soft-warning text-warning border border-warning fs-10">Pending</span>
+                        }
+                      />
+                      <InfoField label="Completed By" value={null} />
+                      <InfoField label="Completed On" value={null} />
+                      <div className="border-top pt-2 mt-2">
+                        <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Compliance Checklist</p>
+                        {[
+                          'ID Verification',
+                          'Income Documents',
+                          'Down Payment Verification',
+                          'Credit Bureau Pulled',
+                          'Title Insurance',
+                          'Commitment Letter Issued',
+                        ].map((item) => (
+                          <div key={item} className="d-flex align-items-center gap-2 mb-2">
+                            <input type="checkbox" className="form-check-input flex-shrink-0" id={`chk_${item}`} />
+                            <label htmlFor={`chk_${item}`} className="fs-12 text-dark mb-0">{item}</label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Accounting tab */}
+                  {activeLeftTab === 'accounting' && (
+                    <div className="px-1">
+                      <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Brokerage</p>
+                      <InfoField label="Brokerage Fee"          value={null} />
+                      <InfoField label="Brokerage Fee Received" value={null} />
+                      <InfoField label="Brokerage Fee Received On" value={null} />
+                      <div className="border-top pt-2 mt-2">
+                        <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Commission</p>
+                        <InfoField label="Commission Amount"    value={null} />
+                        <InfoField label="Commission Received"  value={null} />
+                        <InfoField label="Commission Received On" value={null} />
+                      </div>
+                      <div className="border-top pt-2 mt-2">
+                        <InfoField
+                          label="Compliance Status"
+                          badge={
+                            <span className="badge bg-soft-warning text-warning border border-warning fs-10">Pending</span>
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Tags */}
               {tags.length > 0 && (
@@ -448,10 +654,12 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                 <div className="card-body pb-0 pt-2 px-2">
                   <ul className="nav nav-tabs nav-bordered border-0 mb-0" role="tablist">
                     {[
-                      { id: 'tab_overview',   icon: 'ti-layout-dashboard', label: 'Overview'   },
-                      { id: 'tab_activities', icon: 'ti-alarm-minus',      label: 'Activities' },
-                      { id: 'tab_notes',      icon: 'ti-notes',            label: 'Notes'      },
-                      { id: 'tab_calls',      icon: 'ti-phone',            label: 'Calls'      },
+                      { id: 'tab_overview',    icon: 'ti-layout-dashboard', label: 'Overview'   },
+                      { id: 'tab_activities',  icon: 'ti-alarm-minus',      label: 'Activities' },
+                      { id: 'tab_notes',       icon: 'ti-notes',            label: 'Notes'      },
+                      { id: 'tab_calls',       icon: 'ti-phone',            label: 'Calls'      },
+                      { id: 'tab_compliance',  icon: 'ti-shield-check',     label: 'Compliance' },
+                      { id: 'tab_accounting',  icon: 'ti-calculator',       label: 'Accounting' },
                     ].map(({ id, icon, label }, i) => (
                       <li key={id} className="nav-item" role="presentation">
                         <Link
@@ -766,6 +974,121 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                   <div className="card">
                     <div className="card-body">
                       <p className="text-muted mb-0">Call log integration coming soon.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Compliance tab ───────────────────────────────────────── */}
+                <div className="tab-pane" id="tab_compliance">
+                  <div className="card">
+                    <div className="card-body">
+                      <div className="row g-3 mb-4">
+                        <div className="col-md-4">
+                          <label className="form-label fs-12 text-muted">Compliance Status</label>
+                          <select className="form-select form-select-sm">
+                            {['Pending', 'In Progress', 'Completed', 'Issue Found', 'On Hold'].map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-md-4">
+                          <label className="form-label fs-12 text-muted">Completed By</label>
+                          <input type="text" className="form-control form-control-sm" placeholder="—" />
+                        </div>
+                        <div className="col-md-4">
+                          <label className="form-label fs-12 text-muted">Completed On</label>
+                          <input type="date" className="form-control form-control-sm" />
+                        </div>
+                      </div>
+                      <div className="border-top pt-3">
+                        <h6 className="fw-semibold mb-3"><i className="ti ti-checklist me-1 text-primary" />Compliance Checklist</h6>
+                        <div className="row g-2">
+                          {[
+                            'ID Verification',
+                            'Income Documents',
+                            'Down Payment Verification',
+                            'Credit Bureau Pulled',
+                            'Title Insurance',
+                            'Commitment Letter Issued',
+                            'Signed Conditions',
+                            'Lawyer Instructions Sent',
+                          ].map((item) => (
+                            <div key={item} className="col-md-6">
+                              <div className="form-check">
+                                <input className="form-check-input" type="checkbox" id={`rchk_${item.replace(/\s/g, '_')}`} />
+                                <label className="form-check-label fs-13" htmlFor={`rchk_${item.replace(/\s/g, '_')}`}>{item}</label>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-muted fs-11 mt-3 mb-0">
+                          <i className="ti ti-info-circle me-1" />Additional compliance items can be configured in Settings.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Accounting tab ───────────────────────────────────────── */}
+                <div className="tab-pane" id="tab_accounting">
+                  <div className="card">
+                    <div className="card-body">
+                      <div className="row g-4">
+                        {/* Brokerage */}
+                        <div className="col-md-6">
+                          <h6 className="fw-semibold mb-3 text-primary fs-13 text-uppercase">
+                            <i className="ti ti-building-bank me-1" />Brokerage
+                          </h6>
+                          <div className="mb-3">
+                            <label className="form-label fs-12 text-muted">Brokerage Fee</label>
+                            <input type="text" className="form-control form-control-sm" placeholder="$0.00" />
+                          </div>
+                          <div className="mb-3">
+                            <label className="form-label fs-12 text-muted">Brokerage Fee Received</label>
+                            <select className="form-select form-select-sm">
+                              <option>No</option>
+                              <option>Yes</option>
+                            </select>
+                          </div>
+                          <div className="mb-3">
+                            <label className="form-label fs-12 text-muted">Brokerage Fee Received On</label>
+                            <input type="date" className="form-control form-control-sm" />
+                          </div>
+                        </div>
+                        {/* Commission */}
+                        <div className="col-md-6">
+                          <h6 className="fw-semibold mb-3 text-success fs-13 text-uppercase">
+                            <i className="ti ti-coin me-1" />Commission
+                          </h6>
+                          <div className="mb-3">
+                            <label className="form-label fs-12 text-muted">Commission Amount</label>
+                            <input type="text" className="form-control form-control-sm" placeholder="$0.00" />
+                          </div>
+                          <div className="mb-3">
+                            <label className="form-label fs-12 text-muted">Commission Received</label>
+                            <select className="form-select form-select-sm">
+                              <option>No</option>
+                              <option>Yes</option>
+                            </select>
+                          </div>
+                          <div className="mb-3">
+                            <label className="form-label fs-12 text-muted">Commission Received On</label>
+                            <input type="date" className="form-control form-control-sm" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="border-top pt-3 mt-2">
+                        <div className="row align-items-center">
+                          <div className="col-md-4">
+                            <label className="form-label fs-12 text-muted">Compliance Status</label>
+                            <select className="form-select form-select-sm">
+                              {['Pending', 'In Progress', 'Completed', 'Issue Found', 'On Hold'].map((s) => (
+                                <option key={s}>{s}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
