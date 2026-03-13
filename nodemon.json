@@ -1,0 +1,7 @@
+{
+  "watch": ["src", "prisma", "next.config.ts", ".env", ".env.local"],
+  "ext": "ts,tsx,js,jsx,json,mjs,css,scss",
+  "ignore": ["node_modules", ".next", "public"],
+  "exec": "next dev",
+  "delay": "500"
+}

@@ -161,6 +161,18 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
 
   // Property
   const propAddress = subjectProp?.Address?.strFullAddress ?? deal?.PropertyAddress ?? '';
+  const addrObj = subjectProp?.Address ?? {};
+  const propAddrLine1 = (
+    [addrObj?.StreetNumber, addrObj?.StreetName, addrObj?.strStreetType]
+      .filter((v) => v && String(v).trim() !== '')
+      .join(' ')
+  ) || propAddress.split(',')[0] || propAddress;
+  const propAddrCity     = (addrObj?.City     && String(addrObj.City).trim())     || null;
+  const propAddrProvince = (addrObj?.strProvince && String(addrObj.strProvince).trim()) || null;
+  const propAddrLine2    = `${propAddrCity ?? 'City'}, ${propAddrProvince ?? 'Province'}`;
+  const propAddrPostal   = [addrObj?.PostalFsa, addrObj?.PostalLdu].filter((v) => v && String(v).trim()).join('') || null;
+  const propAddrCountry  = (addrObj?.strCountryType && String(addrObj.strCountryType).trim()) || null;
+  const propAddrExtra    = [propAddrPostal, propAddrCountry].filter(Boolean).join(', ') || null;
   const propValue   = fmt(subjectProp?.EstimatedValue ?? subjectProp?.PropertyValue, 'currency');
   const origValue   = fmt(subjectProp?.OriginalValue,  'currency');
   const purchaseDate= fmt(subjectProp?.PurchaseDate,   'date');
@@ -302,7 +314,8 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
               {/* ── Header card ───────────────────────────────────────────── */}
               <div className="card mb-3">
                 <div className="card-body">
-                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    {/* Left: avatar + name + key info */}
                     <div className="d-flex align-items-center gap-3">
                       <div
                         className="avatar avatar-xxl avatar-rounded border border-warning bg-soft-warning flex-shrink-0"
@@ -315,48 +328,69 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                         <div className="d-flex flex-wrap gap-4">
                           {/* Deal ID + Address */}
                           <div>
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="ti ti-hash text-primary" style={{ fontSize: 13 }} />
-                              <span className="fw-semibold text-dark fs-13">{deal?.key ?? appNumber ?? '—'}</span>
+                            <div className="mb-1">
+                              <span className="text-muted fs-12">Deal ID:&nbsp;</span>
+                              <span className="text-muted fs-12">{deal?.key ?? appNumber ?? '—'}</span>
                             </div>
                             {propAddress && (
-                              <div className="d-flex align-items-start gap-1">
-                                <i className="ti ti-map-pin text-muted mt-1" style={{ fontSize: 12 }} />
-                                <span className="text-muted fs-12" style={{ maxWidth: 300 }}>{propAddress}</span>
+                              <div className="d-flex flex-column">
+                                <span className="text-muted fs-12">
+                                  <span>Address:&nbsp;</span>
+                                  {propAddrLine1}
+                                  {(propAddrCity || propAddrProvince) && (
+                                    <>
+                                      {propAddrLine1 ? ', ' : ''}
+                                      <span className={!propAddrCity ? 'fst-italic opacity-50' : ''}>
+                                        {propAddrCity ?? 'City'}
+                                      </span>
+                                      {', '}
+                                      <span className={!propAddrProvince ? 'fst-italic opacity-50' : ''}>
+                                        {propAddrProvince ?? 'Province'}
+                                      </span>
+                                    </>
+                                  )}
+                                </span>
+                                {propAddrExtra && (
+                                  <span className="text-muted fs-12 opacity-75">{propAddrExtra}</span>
+                                )}
                               </div>
                             )}
                           </div>
                           {/* Loan Amount + Closing Date */}
-                          <div>
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="ti ti-coin text-success" style={{ fontSize: 13 }} />
-                              <span className="fw-semibold text-dark fs-13">{loanAmt !== '—' ? loanAmt : '$—'}</span>
-                            </div>
-                            <div className="d-flex align-items-center gap-1">
-                              <i className="ti ti-calendar text-muted" style={{ fontSize: 12 }} />
+                          <div className="ms-5">
+                            <div className="mb-1">
+                              <span className="text-muted fs-12">Loan Amount:&nbsp;</span>
                               <span className="text-muted fs-12">
-                                Closing: {closingDate !== '—' ? closingDate : fmt(deal?.ExpectedCloseDate, 'date')}
+                                {loanAmt !== '—' ? (loanAmt.startsWith('$') ? loanAmt : `$${loanAmt}`) : '—'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-muted fs-12">Closing Date:&nbsp;</span>
+                              <span className="text-muted fs-12">
+                                {closingDate !== '—' ? closingDate : fmt(deal?.ExpectedCloseDate, 'date')}
                               </span>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="d-flex align-items-center gap-2 flex-wrap">
-                      {isTerminal ? (
-                        <span className={TERMINAL_MAP[stage].cls}>{TERMINAL_MAP[stage].label}</span>
-                      ) : (
-                        <span className={`badge ${status === 'Open' ? 'bg-success' : 'bg-danger'}`}>{status}</span>
-                      )}
-                      {appStatus && (
-                        <span className="badge bg-soft-primary text-primary border border-primary fs-11">{appStatus}</span>
-                      )}
-                      {purpose && appType && (
-                        <span className="badge bg-soft-info text-info border border-info fs-11">
-                          {purpose} — {appType}
-                        </span>
-                      )}
-                    </div>
+                    {/* Right: Application Purpose + Type */}
+                    {(purpose || appType) && (
+                      <div className="d-flex flex-column gap-1" style={{ minWidth: 0 }}>
+                        {purpose && (
+                          <div className="d-flex align-items-center gap-2">
+                            <span className="text-muted fs-12 flex-shrink-0" style={{ width: 140 }}>Application Purpose:</span>
+                            <span className="text-muted fs-12">{purpose}</span>
+                          </div>
+                        )}
+                        {appType && (
+                          <div className="d-flex align-items-center gap-2">
+                            <span className="text-muted fs-12 flex-shrink-0" style={{ width: 140 }}>Application Type:</span>
+                            <span className="text-muted fs-12">{appType}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -365,7 +399,60 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
             {/* ── LEFT SIDEBAR ──────────────────────────────────────────────── */}
             <div className="col-xl-4">
 
-              {/* ── 1. KEY DETAILS ───────────────────────────────────────────── */}
+              {/* ── 1. APPLICANTS ────────────────────────────────────────────── */}
+              {allApplicants.length > 0 && (
+                <div className="card mb-3">
+                  <div className="card-body p-3">
+                    <SectionHead icon="ti-user-circle" title="Applicants" />
+                    {allApplicants.length > 1 && (
+                      <select
+                        className="form-select form-select-sm mb-3"
+                        value={clampedIdx}
+                        onChange={(e) => setSelectedApplicantIdx(Number(e.target.value))}
+                      >
+                        {allApplicants.map((a: any, i: number) => {
+                          const nm = [a?.FirstName, a?.LastName].filter(Boolean).join(' ') || `Applicant ${i + 1}`;
+                          return <option key={i} value={i}>{nm}{a?.PrimaryFlag ? ' (Primary)' : ''}</option>;
+                        })}
+                      </select>
+                    )}
+                    {selApplicant && (() => {
+                      const rawPhone = selApplicant.CellPhone ?? selApplicant.HomePhone ?? selApplicant.WorkPhone ?? '';
+                      const digits   = String(rawPhone).replace(/\D/g, '');
+                      const phone    = digits.length === 10
+                        ? `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`
+                        : digits.length === 11 && digits[0] === '1'
+                        ? `${digits.slice(1,4)}-${digits.slice(4,7)}-${digits.slice(7)}`
+                        : rawPhone || '—';
+                      const gender   = selApplicant.strGender ?? selApplicant.Gender ?? null;
+                      const married  = selApplicant.strMaritalStatus
+                        ? (/married/i.test(selApplicant.strMaritalStatus) ? 'Yes' : 'No')
+                        : null;
+                      const credit   = selApplicant.CreditScore != null ? String(selApplicant.CreditScore) : null;
+                      const fields = [
+                        { label: 'Applicant Name', value: selApplicantName || '—' },
+                        { label: 'Phone',          value: phone },
+                        { label: 'E-Mail',         value: selApplicant.EmailAddress || '—' },
+                        { label: 'Gender',         value: gender || '—' },
+                        { label: 'Credit Score',   value: credit || '—' },
+                        { label: 'Married',        value: married || '—' },
+                      ];
+                      return (
+                        <div className="d-flex flex-column gap-2">
+                          {fields.map(({ label, value }) => (
+                            <div key={label} className="d-flex justify-content-between align-items-center">
+                              <span className="text-muted fs-12">{label}</span>
+                              <span className="fs-12 text-dark text-end" style={{ maxWidth: '60%', wordBreak: 'break-word' }}>{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* ── 2. KEY DETAILS ───────────────────────────────────────────── */}
               <div className="card mb-3">
                 <div className="card-body p-3">
                   <SectionHead icon="ti-layout-list" title="Key Details" />
@@ -473,87 +560,6 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                 </div>
               </div>
 
-              {/* ── 4. APPLICANTS (dropdown) ─────────────────────────────────── */}
-              {allApplicants.length > 0 && (
-                <div className="card mb-3">
-                  <div className="card-body p-3">
-                    <SectionHead icon="ti-user-circle" title="Applicants" />
-                    {allApplicants.length > 1 && (
-                      <select
-                        className="form-select form-select-sm mb-3"
-                        value={clampedIdx}
-                        onChange={(e) => setSelectedApplicantIdx(Number(e.target.value))}
-                      >
-                        {allApplicants.map((a: any, i: number) => {
-                          const nm = [a?.FirstName, a?.LastName].filter(Boolean).join(' ') || `Applicant ${i + 1}`;
-                          return <option key={i} value={i}>{nm}{a?.PrimaryFlag ? ' (Primary)' : ''}</option>;
-                        })}
-                      </select>
-                    )}
-                    {selApplicant && (() => {
-                      const emp  = (selApplicant.EmploymentHistories ?? [])[0] ?? {};
-                      const dob  = fmt(selApplicant.DateOfBirth, 'date');
-                      return (
-                        <>
-                          <div className="d-flex align-items-center mb-3 gap-2">
-                            <span className="avatar avatar-sm rounded-circle bg-soft-primary flex-shrink-0" style={{ width: 36, height: 36 }}>
-                              <span className="avatar-title text-primary fw-bold fs-12">
-                                {selApplicantName.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase()}
-                              </span>
-                            </span>
-                            <div>
-                              <h6 className="mb-0 fs-13 fw-semibold">{selApplicantName}</h6>
-                              {selApplicant.PrimaryFlag && <span className="badge bg-success fs-10">Primary</span>}
-                            </div>
-                          </div>
-                          {selApplicant.EmailAddress && (
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="ti ti-mail text-primary" style={{ fontSize: 12 }} />
-                              <span className="fs-12">{selApplicant.EmailAddress}</span>
-                            </div>
-                          )}
-                          {selApplicant.CellPhone && (
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="ti ti-device-mobile text-primary" style={{ fontSize: 12 }} />
-                              <span className="fs-12">{selApplicant.CellPhone}</span>
-                            </div>
-                          )}
-                          {dob !== '—' && (
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="ti ti-cake text-muted" style={{ fontSize: 12 }} />
-                              <span className="fs-12 text-muted">DOB: {dob}</span>
-                            </div>
-                          )}
-                          {selApplicant.strMaritalStatus && (
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="ti ti-heart text-muted" style={{ fontSize: 12 }} />
-                              <span className="fs-12 text-muted">{selApplicant.strMaritalStatus}</span>
-                            </div>
-                          )}
-                          {emp.EmployerName && (
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="ti ti-building text-muted" style={{ fontSize: 12 }} />
-                              <span className="fs-12 text-muted">{emp.EmployerName}{emp.strOccupation ? ` — ${emp.strOccupation}` : ''}</span>
-                            </div>
-                          )}
-                          <div className="row g-2 mt-1 border-top pt-2">
-                            {[
-                              { label: 'Total Assets',      value: fmt(selApplicant.TotalAssets,      'currency') },
-                              { label: 'Total Liabilities', value: fmt(selApplicant.TotalLiabilities, 'currency') },
-                            ].filter(({ value }) => value !== '—').map(({ label, value }) => (
-                              <div key={label} className="col-6">
-                                <p className="text-muted fs-11 mb-0">{label}</p>
-                                <p className="fw-semibold fs-12 mb-0">{value}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
               {/* ── 5. SUBJECT PROPERTY (single section with applicant context) */}
               <div className="card mb-3">
                 <div className="card-body p-3">
@@ -577,8 +583,21 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                   </div>
                   {propAddress && (
                     <div className="mb-2 p-2 rounded bg-light">
-                      <i className="ti ti-map-pin text-primary me-1" style={{ fontSize: 12 }} />
-                      <span className="fs-12 fw-medium">{propAddress}</span>
+                      <div className="d-flex align-items-start gap-1">
+                        <i className="ti ti-map-pin text-primary flex-shrink-0" style={{ fontSize: 12, marginTop: 2 }} />
+                        <div className="d-flex flex-column">
+                          <span className="fs-12 fw-medium">{propAddrLine1}</span>
+                          <span className="fs-12 text-muted">
+                            <span className={!propAddrCity ? 'fst-italic opacity-50' : ''}>
+                              {propAddrCity ?? 'City'}
+                            </span>
+                            {', '}
+                            <span className={!propAddrProvince ? 'fst-italic opacity-50' : ''}>
+                              {propAddrProvince ?? 'Province'}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
                   <InfoRow label="Freehold"       value={propType} />
