@@ -430,11 +430,12 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                         ? `${digits.slice(1,4)}-${digits.slice(4,7)}-${digits.slice(7)}`
                         : rawPhone || '—';
                       const rawGender = selApplicant.strGender ?? selApplicant.Gender ?? null;
-                      const title     = selApplicant.strTitle ?? selApplicant.Title ?? selApplicant.Salutation ?? '';
+                      const salutation = (selApplicant.strSalutation ?? '').trim();
+                      const salutationDD = Number(selApplicant.SalutationDD ?? 0);
                       const gender    = rawGender
                         ? rawGender
-                        : /\b(mrs|ms|miss)\b/i.test(title) ? 'Female'
-                        : /\bmr\b/i.test(title) ? 'Male'
+                        : /^mr\.?$/i.test(salutation) || salutationDD === 1 ? 'Male'
+                        : /^(mrs|ms|miss)\.?$/i.test(salutation) || salutationDD === 2 || salutationDD === 3 ? 'Female'
                         : null;
                       const married  = selApplicant.strMaritalStatus
                         ? (/married/i.test(selApplicant.strMaritalStatus) ? 'Yes' : 'No')
