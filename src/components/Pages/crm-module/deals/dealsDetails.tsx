@@ -417,6 +417,11 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                       </select>
                     )}
                     {selApplicant && (() => {
+                      const toTitleCase = (s: string) =>
+                        s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+                      const displayName  = selApplicantName
+                        ? toTitleCase(selApplicantName)
+                        : '—';
                       const rawPhone = selApplicant.CellPhone ?? selApplicant.HomePhone ?? selApplicant.WorkPhone ?? '';
                       const digits   = String(rawPhone).replace(/\D/g, '');
                       const phone    = digits.length === 10
@@ -424,13 +429,19 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                         : digits.length === 11 && digits[0] === '1'
                         ? `${digits.slice(1,4)}-${digits.slice(4,7)}-${digits.slice(7)}`
                         : rawPhone || '—';
-                      const gender   = selApplicant.strGender ?? selApplicant.Gender ?? null;
+                      const rawGender = selApplicant.strGender ?? selApplicant.Gender ?? null;
+                      const title     = selApplicant.strTitle ?? selApplicant.Title ?? selApplicant.Salutation ?? '';
+                      const gender    = rawGender
+                        ? rawGender
+                        : /\b(mrs|ms|miss)\b/i.test(title) ? 'Female'
+                        : /\bmr\b/i.test(title) ? 'Male'
+                        : null;
                       const married  = selApplicant.strMaritalStatus
                         ? (/married/i.test(selApplicant.strMaritalStatus) ? 'Yes' : 'No')
                         : null;
                       const credit   = selApplicant.CreditScore != null ? String(selApplicant.CreditScore) : null;
                       const fields = [
-                        { label: 'Applicant Name', value: selApplicantName || '—' },
+                        { label: 'Applicant Name', value: displayName },
                         { label: 'Phone',          value: phone },
                         { label: 'E-Mail',         value: selApplicant.EmailAddress || '—' },
                         { label: 'Gender',         value: gender || '—' },
