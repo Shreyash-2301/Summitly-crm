@@ -192,6 +192,75 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
   const totalLiab   = fmt(finGroup?.TotalLiabilities, 'currency');
   const netWorth    = fmt(finGroup?.NetWorth,         'currency');
   const downPayment = fmt(reqMort?.DownPaymentAmount ?? reqMort?.DownPayment ?? dealObj?.DownPaymentAmount, 'currency');
+
+  // ── Change history / activities ──────────────────────────────────────────────
+  const changeHistory: any[] = (
+    raw?.MortgageApplication?.ChangeHistory ??
+    raw?.ChangeHistory ??
+    raw?.MortgageApplication?.ActivityHistory ??
+    []
+  );
+
+  // ── Documents / files ─────────────────────────────────────────────────────────
+  const documents: any[] = (
+    raw?.Documents ??
+    raw?.MortgageApplication?.Documents ??
+    raw?.MortgageApplication?.Attachments ??
+    []
+  );
+
+  // ── Commissions & Fees (from raw.Commissions) ───────────────────────────────
+  const commissions  = raw?.Commissions ?? {};
+  const commMortList : any[] = commissions?.CommissionMortgagesLst ?? [];
+  const commData     = commMortList[0]?.MortgageCommissionsData ?? {};
+  const mortgageFees : any[] = commData?.MortgageFeesLst ?? [];
+  const commSplits   : any[] = commData?.CommissionDetails?.SplitsList ?? [];
+  const commDeductions: any[] = commData?.DeductionsLst ?? [];
+
+  // DownPayment sources from MortgageDeal
+  const downpaymentSources: any[] = dealObj?.DownpaymentSources ?? [];
+  const totalDownPayment = downpaymentSources.reduce((sum: number, s: any) => sum + (Number(s?.Amount) || 0), 0);
+  const depositAmount = totalDownPayment > 0 ? fmt(totalDownPayment, 'currency') : downPayment;
+
+  // Brokerage fee (from commissions mortgage fees list)
+  const brokerageFeeItem = mortgageFees.find((f: any) => f?.Description === 'Brokerage Fee' || f?.CommissionFeeTypeDD === 10);
+  const findersFeeItem   = mortgageFees.find((f: any) => f?.Description === 'Finders Fee' || f?.CommissionFeeTypeDD === 11);
+  const brokerageFeeAmt  = fmt(brokerageFeeItem?.Amount, 'currency');
+  const brokerageFeeReceived = brokerageFeeItem?.FundsReceived;
+  const findersFeeAmt    = fmt(findersFeeItem?.Amount, 'currency');
+  const findersBP        = findersFeeItem?.BasisPoints != null ? `${Number(findersFeeItem.BasisPoints).toFixed(2)} bps` : null;
+
+  // Commission totals
+  const commTotalFees    = fmt(commData?.TotalFees, 'currency');
+  const commTotalNetFees = fmt(commData?.TotalNetFees, 'currency');
+  const commTotalDeductions = fmt(commData?.TotalDeductions, 'currency');
+  const commNotes        = commData?.Notes ?? null;
+  const commMaxFundsDate = fmt(commData?.MaxFundsReceivedDate, 'date');
+
+  // Firm vs Agent splits
+  const firmSplit  = commSplits.find((s: any) => s?.PayeeFirmFlag === true);
+  const agentSplit = commSplits.find((s: any) => s?.PayeeAgentOnDealFlag === true);
+
+  // Fee items from mortgage (Appraisal, Legal Fees, Lender Fee etc)
+  const reqMortFeeItems: any[] = reqMort?.Fees?.FeeItems ?? [];
+  const lenderFeeItem  = reqMortFeeItems.find((f: any) => f?.FeeType === 'Lender Fee');
+  const appraisalFee   = reqMortFeeItems.find((f: any) => f?.FeeType === 'Appraisal');
+  const legalFee       = reqMortFeeItems.find((f: any) => /Legal/i.test(f?.FeeType ?? ''));
+  const brokerageFeeOnMortgage = reqMortFeeItems.find((f: any) => f?.FeeType === 'Brokerage Fee');
+
+  // Compliance status derived from stage
+  const complianceStatus = (() => {
+    const closedStages = ['Closed / Funded', 'Paid & Finalized', 'Renewed'];
+    const approvedStages = ['Approved', 'Ready to Close', ...closedStages];
+    if (closedStages.includes(stage)) return 'Complete';
+    if (approvedStages.includes(stage)) return 'Approved';
+    if (stage === 'Compliance Review') return 'In Review';
+    return 'Pending';
+  })();
+  const complianceBadgeCls = complianceStatus === 'Complete' ? 'bg-soft-success text-success border-success'
+    : complianceStatus === 'Approved' ? 'bg-soft-info text-info border-info'
+    : complianceStatus === 'In Review' ? 'bg-soft-primary text-primary border-primary'
+    : 'bg-soft-warning text-warning border-warning';
   // Selected applicant (for left-sidebar applicant+property dropdowns)
   const clampedIdx   = allApplicants.length > 0 ? Math.min(selectedApplicantIdx, allApplicants.length - 1) : 0;
   const selApplicant = allApplicants[clampedIdx] ?? null;
@@ -373,16 +442,33 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
               <div className="card mb-3">
                 <div className="card-body p-3">
                   <SectionHead icon="ti-cash" title="Deposit & Fees" />
-                  <InfoField label="Deposit Amount Required" value={downPayment} />
-                  <InfoField label="Deposit Received On"    value={null} />
-                  <InfoField label="Brokerage Fee"          value={null} />
+                  <InfoField label="Deposit Amount" value={depositAmount} />
+                  {downpaymentSources.length > 0 && (
+                    <div className="mb-2">
+                      {downpaymentSources.map((src: any, i: number) => (
+                        <div key={i} className="d-flex justify-content-between fs-12 mb-1 ps-2">
+                          <span className="text-muted">{src.strDownPaymentSourceType ?? 'Source'}{src.Description ? ` — ${src.Description}` : ''}</span>
+                          <span className="fw-medium">{fmt(src.Amount, 'currency')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <InfoField label="Brokerage Fee" value={brokerageFeeAmt !== '—' ? brokerageFeeAmt : fmt(brokerageFeeOnMortgage?.Amount, 'currency')} />
+                  {lenderFeeItem && <InfoField label="Lender Fee" value={fmt(lenderFeeItem.Amount, 'currency')} />}
+                  {appraisalFee && <InfoField label="Appraisal Fee" value={fmt(appraisalFee.Amount, 'currency')} />}
+                  {legalFee && <InfoField label="Legal Fees" value={fmt(legalFee.Amount, 'currency')} />}
+                  {findersFeeAmt !== '—' && (
+                    <InfoField label="Finders Fee" value={`${findersFeeAmt}${findersBP ? ` (${findersBP})` : ''}`} />
+                  )}
                   <div className="border-top pt-2 mt-1">
-                    <InfoField label="Letter of Direction Signed"           value={null} />
-                    <InfoField label="Letter of Direction Sent to Lawyer"   value={null} />
-                    <InfoField label="Confirmation From Lawyer"             value={null} />
-                    <InfoField label="  └ Received On"                      value={null} />
-                    <InfoField label="Brokerage Fee Received"               value={null} />
-                    <InfoField label="  └ Received On"                      value={null} />
+                    <InfoField label="Brokerage Fee Received" value={brokerageFeeReceived != null ? (brokerageFeeReceived ? 'Yes' : 'No') : null} />
+                    <InfoField label="Funds Received Date" value={commMaxFundsDate} />
+                    {commNotes && (
+                      <div className="mt-2 p-2 rounded bg-light">
+                        <span className="text-muted fs-11 d-block mb-1">Commission Notes</span>
+                        <span className="fs-12">{commNotes}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -536,24 +622,24 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                       <InfoField
                         label="Compliance Status"
                         badge={
-                          <span className="badge bg-soft-warning text-warning border border-warning fs-10">Pending</span>
+                          <span className={`badge ${complianceBadgeCls} border fs-10`}>{complianceStatus}</span>
                         }
                       />
-                      <InfoField label="Completed By" value={null} />
-                      <InfoField label="Completed On" value={null} />
+                      <InfoField label="Stage" value={stage || null} />
+                      <InfoField label="Mortgage Status" value={reqMort?.strMortgageStatus || null} />
                       <div className="border-top pt-2 mt-2">
                         <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Compliance Checklist</p>
                         {[
-                          'ID Verification',
-                          'Income Documents',
-                          'Down Payment Verification',
-                          'Credit Bureau Pulled',
-                          'Title Insurance',
-                          'Commitment Letter Issued',
-                        ].map((item) => (
-                          <div key={item} className="d-flex align-items-center gap-2 mb-2">
-                            <input type="checkbox" className="form-check-input flex-shrink-0" id={`chk_${item}`} />
-                            <label htmlFor={`chk_${item}`} className="fs-12 text-dark mb-0">{item}</label>
+                          { label: 'ID Verification',         auto: allApplicants.some((a: any) => (a?.Identifications ?? []).length > 0) },
+                          { label: 'Income Documents',        auto: allApplicants.some((a: any) => (a?.EmploymentHistories ?? []).length > 0 && a?.TotalCurrentIncome > 0) },
+                          { label: 'Down Payment Verification', auto: downpaymentSources.length > 0 },
+                          { label: 'Credit Bureau Pulled',    auto: allApplicants.some((a: any) => a?.CreditScore != null) || commDeductions.some((d: any) => /credit bureau/i.test(d?.DeductionTypeStr ?? '')) },
+                          { label: 'Title Insurance',         auto: ['Approved', 'Ready to Close', 'Closed / Funded', 'Paid & Finalized', 'Renewed'].includes(stage) },
+                          { label: 'Commitment Letter Issued', auto: ['Approved', 'Ready to Close', 'Closed / Funded', 'Paid & Finalized', 'Renewed'].includes(stage) },
+                        ].map(({ label, auto }) => (
+                          <div key={label} className="d-flex align-items-center gap-2 mb-2">
+                            <input type="checkbox" className="form-check-input flex-shrink-0" id={`chk_${label}`} checked={auto} readOnly />
+                            <label htmlFor={`chk_${label}`} className={`fs-12 mb-0 ${auto ? 'text-success' : 'text-dark'}`}>{label}</label>
                           </div>
                         ))}
                       </div>
@@ -563,21 +649,55 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                   {/* Accounting tab */}
                   {activeLeftTab === 'accounting' && (
                     <div className="px-1">
-                      <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Brokerage</p>
-                      <InfoField label="Brokerage Fee"          value={null} />
-                      <InfoField label="Brokerage Fee Received" value={null} />
-                      <InfoField label="Brokerage Fee Received On" value={null} />
+                      <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Brokerage Fees</p>
+                      <InfoField label="Brokerage Fee" value={brokerageFeeAmt !== '—' ? brokerageFeeAmt : fmt(brokerageFeeOnMortgage?.Amount, 'currency')} />
+                      <InfoField label="Brokerage Fee Received" value={brokerageFeeReceived != null ? (brokerageFeeReceived ? 'Yes' : 'No') : null} />
+                      {findersFeeAmt !== '—' && <InfoField label="Finders Fee" value={`${findersFeeAmt}${findersBP ? ` (${findersBP})` : ''}`} />}
+                      {lenderFeeItem && <InfoField label="Lender Fee" value={fmt(lenderFeeItem.Amount, 'currency')} />}
+
                       <div className="border-top pt-2 mt-2">
                         <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Commission</p>
-                        <InfoField label="Commission Amount"    value={null} />
-                        <InfoField label="Commission Received"  value={null} />
-                        <InfoField label="Commission Received On" value={null} />
+                        <InfoField label="Total Commission" value={commTotalFees} />
+                        <InfoField label="Net Commission" value={commTotalNetFees} />
+                        <InfoField label="Total Deductions" value={commTotalDeductions} />
+                        <InfoField label="Funds Received Date" value={commMaxFundsDate} />
+                        {commNotes && <InfoField label="Notes" value={commNotes} />}
                       </div>
+
+                      {/* Commission Splits */}
+                      {commSplits.length > 0 && (
+                        <div className="border-top pt-2 mt-2">
+                          <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Commission Split</p>
+                          {commSplits.map((s: any, i: number) => (
+                            <div key={i} className="d-flex justify-content-between fs-12 mb-1">
+                              <span className="text-muted">
+                                {s.SplitDescription}{s.PayeeName ? ` — ${s.PayeeName}` : ''}
+                                {s.Level1Split != null ? ` (${s.Level1Split}%)` : ''}
+                              </span>
+                              <span className="fw-medium">{fmt(s.Fees, 'currency')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Deductions */}
+                      {commDeductions.length > 0 && (
+                        <div className="border-top pt-2 mt-2">
+                          <p className="text-muted fs-11 fw-semibold mb-2 text-uppercase">Deductions</p>
+                          {commDeductions.map((d: any, i: number) => (
+                            <div key={i} className="d-flex justify-content-between fs-12 mb-1">
+                              <span className="text-muted">{d.DeductionTypeStr ?? d.OtherDeductionName ?? 'Deduction'}</span>
+                              <span className="fw-medium">{fmt(d.Amount, 'currency')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="border-top pt-2 mt-2">
                         <InfoField
                           label="Compliance Status"
                           badge={
-                            <span className="badge bg-soft-warning text-warning border border-warning fs-10">Pending</span>
+                            <span className={`badge ${complianceBadgeCls} border fs-10`}>{complianceStatus}</span>
                           }
                         />
                       </div>
@@ -654,12 +774,11 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                 <div className="card-body pb-0 pt-2 px-2">
                   <ul className="nav nav-tabs nav-bordered border-0 mb-0" role="tablist">
                     {[
-                      { id: 'tab_overview',    icon: 'ti-layout-dashboard', label: 'Overview'   },
-                      { id: 'tab_activities',  icon: 'ti-alarm-minus',      label: 'Activities' },
-                      { id: 'tab_notes',       icon: 'ti-notes',            label: 'Notes'      },
-                      { id: 'tab_calls',       icon: 'ti-phone',            label: 'Calls'      },
-                      { id: 'tab_compliance',  icon: 'ti-shield-check',     label: 'Compliance' },
-                      { id: 'tab_accounting',  icon: 'ti-calculator',       label: 'Accounting' },
+                      { id: 'tab_activities', icon: 'ti-alarm-minus', label: 'Activities' },
+                      { id: 'tab_notes',      icon: 'ti-notes',       label: 'Notes'      },
+                      { id: 'tab_calls',      icon: 'ti-phone',       label: 'Calls'      },
+                      { id: 'tab_files',      icon: 'ti-file',        label: 'Files'      },
+                      { id: 'tab_email',      icon: 'ti-mail',        label: 'Email'      },
                     ].map(({ id, icon, label }, i) => (
                       <li key={id} className="nav-item" role="presentation">
                         <Link
@@ -679,270 +798,64 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
               {/* Tab content */}
               <div className="tab-content pt-0">
 
-                {/* ── Overview tab ─────────────────────────────────────────── */}
-                <div className="tab-pane active show" id="tab_overview">
-
-                  {/* Applicants */}
-                  <h6 className="fw-semibold mb-3">
-                    <i className="ti ti-users me-1 text-primary" />
-                    Applicants ({allApplicants.length})
-                  </h6>
-
-                  {allApplicants.length === 0 && (
-                    <div className="alert alert-info">No applicant data found in this record.</div>
-                  )}
-
-                  <div className="row g-3 mb-4">
-                    {allApplicants.map((a: any, i: number) => {
-                      const name     = [a?.FirstName, a?.LastName].filter(Boolean).join(' ');
-                      const initAp   = name.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase();
-                      const dob      = fmt(a?.DateOfBirth, 'date');
-                      const emp      = (a?.EmploymentHistories ?? [])[0] ?? {};
-                      const assets: any[]      = a?.Assets ?? [];
-                      const liabilities: any[] = a?.Liabilities ?? [];
-                      const colorVariant       = i === 0 ? 'primary' : 'warning';
-                      return (
-                        <div key={i} className="col-md-6">
-                          <div className="card h-100 border">
-                            <div className="card-body p-3">
-
-                              {/* Applicant header */}
-                              <div className="d-flex align-items-center mb-3 gap-2">
-                                <span
-                                  className={`avatar avatar-md rounded-circle bg-soft-${colorVariant} flex-shrink-0`}
-                                  style={{ width: 40, height: 40 }}
-                                >
-                                  <span className={`avatar-title text-${colorVariant} fw-bold`}>{initAp}</span>
-                                </span>
-                                <div>
-                                  <h6 className="mb-0 fs-13 fw-semibold">{name || '—'}</h6>
-                                  {a?.PrimaryFlag && (
-                                    <span className="badge bg-success fs-10">Primary</span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Contact */}
-                              <div className="mb-3">
-                                <p className="text-muted fs-11 fw-semibold mb-1 text-uppercase">Contact</p>
-                                <div className="d-flex flex-column gap-1">
-                                  {a?.EmailAddress && (
-                                    <span className="fs-12">
-                                      <i className="ti ti-mail text-primary me-1" />{a.EmailAddress}
-                                    </span>
-                                  )}
-                                  {a?.CellPhone && (
-                                    <span className="fs-12">
-                                      <i className="ti ti-device-mobile text-primary me-1" />{a.CellPhone}
-                                    </span>
-                                  )}
-                                  {a?.HomePhone && a.HomePhone !== a.CellPhone && (
-                                    <span className="fs-12">
-                                      <i className="ti ti-phone text-muted me-1" />{a.HomePhone} (home)
-                                    </span>
-                                  )}
-                                  {a?.WorkPhone && (
-                                    <span className="fs-12">
-                                      <i className="ti ti-building me-1 text-muted" />{a.WorkPhone} (work)
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Personal */}
-                              {(dob !== '—' || a?.strMaritalStatus) && (
-                                <div className="mb-3">
-                                  <p className="text-muted fs-11 fw-semibold mb-1 text-uppercase">Personal</p>
-                                  <div className="d-flex flex-column gap-1">
-                                    {dob !== '—' && (
-                                      <span className="fs-12"><i className="ti ti-cake me-1 text-muted" />DOB: {dob}</span>
-                                    )}
-                                    {a?.strMaritalStatus && (
-                                      <span className="fs-12"><i className="ti ti-heart me-1 text-muted" />{a.strMaritalStatus}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Employment */}
-                              {emp?.EmployerName && (
-                                <div className="mb-3">
-                                  <p className="text-muted fs-11 fw-semibold mb-1 text-uppercase">Employment</p>
-                                  <div className="d-flex flex-column gap-1">
-                                    <span className="fs-12"><i className="ti ti-building me-1 text-muted" />{emp.EmployerName}</span>
-                                    {emp.strOccupation && (
-                                      <span className="fs-12"><i className="ti ti-briefcase me-1 text-muted" />{emp.strOccupation}</span>
-                                    )}
-                                    {emp.strEmploymentHistoryStatus && (
-                                      <span className="badge bg-soft-info text-info fs-10 align-self-start mt-1">
-                                        {emp.strEmploymentHistoryStatus}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Assets */}
-                              {assets.length > 0 && (
-                                <div className="mb-2">
-                                  <p className="text-muted fs-11 fw-semibold mb-1 text-uppercase">
-                                    Assets{a?.TotalAssets ? ` (${fmt(a.TotalAssets, 'currency')} total)` : ''}
-                                  </p>
-                                  <div className="d-flex flex-column gap-1">
-                                    {assets.map((ast: any, ai: number) => (
-                                      <div key={ai} className="d-flex justify-content-between">
-                                        <span className="fs-12 text-muted">
-                                          {ast.strAssetType ?? 'Asset'}
-                                          {ast.AssetDescription ? ` (${ast.AssetDescription})` : ''}
-                                        </span>
-                                        <span className="fs-12 fw-medium">{fmt(ast.AssetValue, 'currency')}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Liabilities */}
-                              {liabilities.length > 0 && (
-                                <div>
-                                  <p className="text-muted fs-11 fw-semibold mb-1 text-uppercase">Liabilities</p>
-                                  <div className="d-flex flex-column gap-1">
-                                    {liabilities.map((lib: any, li: number) => (
-                                      <div key={li} className="d-flex justify-content-between">
-                                        <span className="fs-12 text-muted">{lib.strLiabilityType ?? 'Liability'}</span>
-                                        <span className="fs-12 fw-medium">{fmt(lib.Balance ?? lib.Amount, 'currency')}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Subject Property full detail */}
-                  <h6 className="fw-semibold mb-3">
-                    <i className="ti ti-home-2 me-1 text-primary" />Subject Property
-                  </h6>
-                  <div className="card mb-4 border">
-                    <div className="card-body p-3">
-                      <div className="row g-2">
-                        {[
-                          { label: 'Full Address',    value: propAddress },
-                          { label: 'Dwelling',        value: dwellingType },
-                          { label: 'Property Type',   value: propType },
-                          { label: 'Occupancy',       value: occupancy },
-                          { label: 'Estimated Value', value: propValue },
-                          { label: 'Original Value',  value: origValue },
-                          { label: 'Purchase Date',   value: purchaseDate },
-                          { label: 'Annual Taxes',    value: annualTaxes },
-                          { label: 'Living Space',    value: livingSpace },
-                          { label: 'Units',           value: numUnits ?? '—' },
-                          { label: 'Garage',          value: garage ?? '—' },
-                          { label: 'Closing Date',    value: closingDate },
-                        ].filter(({ value }) => value && value !== '—').map(({ label, value }) => (
-                          <div key={label} className="col-md-6">
-                            <div className="d-flex justify-content-between py-1 border-bottom">
-                              <span className="text-muted fs-12">{label}</span>
-                              <span className="text-dark fw-medium fs-12 text-end" style={{ maxWidth: '60%' }}>{value}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Existing mortgages on property */}
-                  {Array.isArray(propMort?.ExistingMortgages) && propMort.ExistingMortgages.length > 0 && (
-                    <>
-                      <h6 className="fw-semibold mb-3">
-                        <i className="ti ti-lock me-1 text-primary" />Existing Mortgages on Property
-                      </h6>
-                      <div className="card mb-4 border">
-                        <div className="card-body p-3">
-                          {(propMort.ExistingMortgages as any[]).map((em: any, ei: number) => (
-                            <div key={ei} className={`row g-2 ${ei > 0 ? 'pt-2 mt-2 border-top' : ''}`}>
-                              {[
-                                { label: 'Lender',   value: em.strLenderName ?? em.LenderName },
-                                { label: 'Balance',  value: fmt(em.Balance, 'currency') },
-                                { label: 'Payment',  value: fmt(em.Payment, 'currency') },
-                                { label: 'Rate',     value: em.InterestRate ? `${Number(em.InterestRate).toFixed(2)}%` : null },
-                                { label: 'Type',     value: em.strMortgageType },
-                                { label: 'Maturity', value: fmt(em.MaturityDate, 'date') },
-                              ].filter(({ value }) => value && value !== '—').map(({ label, value }) => (
-                                <div key={label} className="col-6">
-                                  <span className="text-muted fs-11">{label}: </span>
-                                  <span className="fw-medium fs-11">{value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Financial Summary */}
-                  {(totalIncome !== '—' || totalAssets !== '—') && (
-                    <>
-                      <h6 className="fw-semibold mb-3">
-                        <i className="ti ti-receipt me-1 text-primary" />Group Financial Summary
-                      </h6>
-                      <div className="card mb-4 border">
-                        <div className="card-body p-3">
-                          <div className="row g-2 mb-3">
-                            {[
-                              { label: 'Total Income',      value: totalIncome, icon: 'ti-trending-up',   color: 'text-success' },
-                              { label: 'Total Assets',      value: totalAssets, icon: 'ti-building-bank', color: 'text-primary' },
-                              { label: 'Total Liabilities', value: totalLiab,   icon: 'ti-trending-down', color: 'text-danger'  },
-                              { label: 'Net Worth',         value: netWorth,    icon: 'ti-star',          color: 'text-warning' },
-                            ].filter(({ value }) => value !== '—').map(({ label, value, icon, color }) => (
-                              <div key={label} className="col-md-3 col-6">
-                                <div className="text-center p-2 rounded border">
-                                  <i className={`ti ${icon} ${color} fs-20 mb-1`} />
-                                  <p className="text-muted fs-11 mb-1">{label}</p>
-                                  <h6 className="fw-bold mb-0 fs-13">{value}</h6>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          {(ltv !== '—' || gds !== '—' || tds !== '—') && (
-                            <div className="row g-3">
-                              {[
-                                { label: 'LTV', value: ltv, desc: 'Loan-to-Value',      warnAt: 80 },
-                                { label: 'GDS', value: gds, desc: 'Gross Debt Service', warnAt: 32 },
-                                { label: 'TDS', value: tds, desc: 'Total Debt Service', warnAt: 44 },
-                              ].filter(({ value }) => value !== '—').map(({ label, value, desc, warnAt }) => {
-                                const n = parseFloat(value); const ok = isNaN(n) || n <= warnAt;
-                                return (
-                                  <div key={label} className="col-md-4">
-                                    <div className="d-flex justify-content-between mb-1">
-                                      <span className="fs-12 text-muted">{label} <span className="fst-italic" style={{ fontSize: 10 }}>({desc})</span></span>
-                                      <span className={`fs-12 fw-bold ${ok ? 'text-success' : 'text-danger'}`}>{value}</span>
-                                    </div>
-                                    <div className="progress" style={{ height: 5 }}>
-                                      <div className={`progress-bar ${ok ? 'bg-success' : 'bg-danger'}`} style={{ width: `${Math.min(100, n)}%` }} />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-                {/* /Overview tab */}
-
                 {/* ── Activities tab ───────────────────────────────────────── */}
-                <div className="tab-pane" id="tab_activities">
+                <div className="tab-pane active show" id="tab_activities">
                   <div className="card">
                     <div className="card-body">
-                      <p className="text-muted mb-0">Activity tracking will be integrated in a future update.</p>
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <h6 className="fw-semibold mb-0">Activities</h6>
+                        <button className="btn btn-sm btn-outline-primary">
+                          <i className="ti ti-plus me-1" />Add Activity
+                        </button>
+                      </div>
+                      {changeHistory.length > 0 ? (
+                        <div className="timeline-activity">
+                          {changeHistory.map((item: any, idx: number) => {
+                            const dateStr = fmt(
+                              item?.WhenDate ?? item?.ChangeDate ?? item?.Date ?? item?.CreatedDate ?? item?.Timestamp,
+                              'date'
+                            );
+                            const desc = (
+                              item?.ChangeDescription ??
+                              item?.Description ??
+                              item?.Action ??
+                              item?.EventDescription ??
+                              (() => {
+                                const field = item?.FieldName ?? item?.Field ?? '';
+                                const oldV  = item?.OldValue ?? item?.From ?? '';
+                                const newV  = item?.NewValue ?? item?.To ?? '';
+                                if (field && (oldV || newV)) return `${field}: ${oldV || '—'} → ${newV || '—'}`;
+                                return null;
+                              })()
+                            );
+                            if (!desc) return null;
+                            const user = item?.ChangedByName ?? item?.UserName ?? item?.AgentName ?? item?.CreatedBy ?? null;
+                            return (
+                              <div key={idx} className="d-flex gap-3 mb-3 pb-3 border-bottom">
+                                <div
+                                  className="flex-shrink-0 rounded-circle bg-soft-primary d-flex align-items-center justify-content-center"
+                                  style={{ width: 36, height: 36 }}
+                                >
+                                  <i className="ti ti-activity text-primary" style={{ fontSize: 16 }} />
+                                </div>
+                                <div className="flex-grow-1">
+                                  <p className="mb-1 fs-13 text-dark">{desc}</p>
+                                  <div className="d-flex align-items-center gap-2">
+                                    {user && <span className="text-muted fs-11">{user}</span>}
+                                    {user && dateStr !== '—' && <span className="text-muted fs-11">·</span>}
+                                    {dateStr !== '—' && <span className="text-muted fs-11">{dateStr}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-5">
+                          <i className="ti ti-activity fs-48 text-muted opacity-50" />
+                          <p className="text-muted mt-2 mb-0">No activities recorded for this deal.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -951,19 +864,54 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                 <div className="tab-pane" id="tab_notes">
                   <div className="card">
                     <div className="card-body">
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <h6 className="fw-semibold mb-0">Notes</h6>
+                        <button className="btn btn-sm btn-outline-primary">
+                          <i className="ti ti-plus me-1" />Add New
+                        </button>
+                      </div>
                       {Array.isArray(raw?.DealNotes) && raw.DealNotes.length > 0 ? (
-                        (raw.DealNotes as any[]).map((note: any, ni: number) => (
-                          <div key={ni} className="card border shadow-none mb-2">
-                            <div className="card-body p-3">
-                              <p className="mb-1 fs-13">{note.NoteText ?? note.Content ?? JSON.stringify(note)}</p>
-                              {note.CreatedDate && (
-                                <small className="text-muted">{fmt(note.CreatedDate, 'date')}</small>
-                              )}
+                        (raw.DealNotes as any[]).map((note: any, ni: number) => {
+                          const noteText = typeof note?.NoteText === 'string'
+                            ? note.NoteText
+                            : typeof note?.Content === 'string'
+                            ? note.Content
+                            : typeof note?.Text === 'string'
+                            ? note.Text
+                            : typeof note?.Note === 'string'
+                            ? note.Note
+                            : null;
+                          if (!noteText) return null;
+                          const author   = note?.CreatedByName ?? note?.Author ?? note?.AgentName ?? null;
+                          const dateStr  = fmt(note?.CreatedDate ?? note?.Date ?? note?.NoteDate, 'date');
+                          const initials = author
+                            ? author.split(' ').map((w: string) => w[0] ?? '').join('').substring(0, 2).toUpperCase()
+                            : 'N';
+                          return (
+                            <div key={ni} className="card border shadow-none mb-3">
+                              <div className="card-body p-3">
+                                <div className="d-flex align-items-start gap-2 mb-2">
+                                  <span
+                                    className="avatar avatar-xs rounded-circle bg-soft-secondary flex-shrink-0"
+                                    style={{ width: 32, height: 32 }}
+                                  >
+                                    <span className="avatar-title text-secondary fw-bold fs-11">{initials}</span>
+                                  </span>
+                                  <div>
+                                    {author && <p className="mb-0 fw-medium fs-12">{author}</p>}
+                                    {dateStr !== '—' && <small className="text-muted fs-11">{dateStr}</small>}
+                                  </div>
+                                </div>
+                                <p className="mb-0 fs-13 text-dark">{noteText}</p>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
-                        <p className="text-muted mb-0">No notes recorded for this deal.</p>
+                        <div className="text-center py-5">
+                          <i className="ti ti-notes fs-48 text-muted opacity-50" />
+                          <p className="text-muted mt-2 mb-0">No notes recorded for this deal.</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -973,122 +921,169 @@ const DealsDetailsComponent = ({ dealKey }: DealsDetailsProps) => {
                 <div className="tab-pane" id="tab_calls">
                   <div className="card">
                     <div className="card-body">
-                      <p className="text-muted mb-0">Call log integration coming soon.</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Compliance tab ───────────────────────────────────────── */}
-                <div className="tab-pane" id="tab_compliance">
-                  <div className="card">
-                    <div className="card-body">
-                      <div className="row g-3 mb-4">
-                        <div className="col-md-4">
-                          <label className="form-label fs-12 text-muted">Compliance Status</label>
-                          <select className="form-select form-select-sm">
-                            {['Pending', 'In Progress', 'Completed', 'Issue Found', 'On Hold'].map((s) => (
-                              <option key={s}>{s}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-md-4">
-                          <label className="form-label fs-12 text-muted">Completed By</label>
-                          <input type="text" className="form-control form-control-sm" placeholder="—" />
-                        </div>
-                        <div className="col-md-4">
-                          <label className="form-label fs-12 text-muted">Completed On</label>
-                          <input type="date" className="form-control form-control-sm" />
-                        </div>
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <h6 className="fw-semibold mb-0">Calls</h6>
+                        <button className="btn btn-sm btn-outline-primary">
+                          <i className="ti ti-plus me-1" />Add New
+                        </button>
                       </div>
-                      <div className="border-top pt-3">
-                        <h6 className="fw-semibold mb-3"><i className="ti ti-checklist me-1 text-primary" />Compliance Checklist</h6>
-                        <div className="row g-2">
-                          {[
-                            'ID Verification',
-                            'Income Documents',
-                            'Down Payment Verification',
-                            'Credit Bureau Pulled',
-                            'Title Insurance',
-                            'Commitment Letter Issued',
-                            'Signed Conditions',
-                            'Lawyer Instructions Sent',
-                          ].map((item) => (
-                            <div key={item} className="col-md-6">
-                              <div className="form-check">
-                                <input className="form-check-input" type="checkbox" id={`rchk_${item.replace(/\s/g, '_')}`} />
-                                <label className="form-check-label fs-13" htmlFor={`rchk_${item.replace(/\s/g, '_')}`}>{item}</label>
+                      {(() => {
+                        const calls: any[] = (
+                          raw?.Calls ??
+                          raw?.MortgageApplication?.Calls ??
+                          raw?.CallLogs ??
+                          []
+                        );
+                        if (calls.length === 0) {
+                          return (
+                            <div className="text-center py-5">
+                              <i className="ti ti-phone-off fs-48 text-muted opacity-50" />
+                              <p className="text-muted mt-2 mb-0">No calls logged for this deal.</p>
+                            </div>
+                          );
+                        }
+                        return calls.map((call: any, ci: number) => {
+                          const callerName = call?.CallerName ?? call?.AgentName ?? call?.LoggedBy ?? call?.UserName ?? 'Unknown';
+                          const callDate   = fmt(call?.CallDate ?? call?.Date ?? call?.LoggedDate, 'date');
+                          const callTime   = call?.CallTime ?? call?.Time ?? null;
+                          const callStatus = call?.strCallResult ?? call?.Status ?? call?.Outcome ?? null;
+                          const callNotes  = typeof call?.Notes === 'string' ? call.Notes
+                            : typeof call?.Description === 'string' ? call.Description
+                            : null;
+                          const statusCls  = callStatus === 'Busy' ? 'bg-soft-warning text-warning'
+                            : callStatus === 'No Answer' ? 'bg-soft-danger text-danger'
+                            : callStatus === 'Answered' ? 'bg-soft-success text-success'
+                            : 'bg-soft-secondary text-secondary';
+                          return (
+                            <div key={ci} className="card border shadow-none mb-3">
+                              <div className="card-body p-3">
+                                <div className="d-flex align-items-start justify-content-between mb-1">
+                                  <div>
+                                    <span className="fw-medium fs-13">{callerName}</span>
+                                    <span className="text-muted fs-12 ms-1">
+                                      logged a call{callDate !== '—' ? ` on ${callDate}` : ''}{callTime ? `, ${callTime}` : ''}
+                                    </span>
+                                  </div>
+                                  {callStatus && (
+                                    <span className={`badge ${statusCls} fs-11`}>{callStatus}</span>
+                                  )}
+                                </div>
+                                {callNotes && <p className="mb-0 fs-12 text-muted mt-1">{callNotes}</p>}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                        <p className="text-muted fs-11 mt-3 mb-0">
-                          <i className="ti ti-info-circle me-1" />Additional compliance items can be configured in Settings.
-                        </p>
-                      </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>
 
-                {/* ── Accounting tab ───────────────────────────────────────── */}
-                <div className="tab-pane" id="tab_accounting">
+                {/* ── Files tab ────────────────────────────────────────────── */}
+                <div className="tab-pane" id="tab_files">
                   <div className="card">
                     <div className="card-body">
-                      <div className="row g-4">
-                        {/* Brokerage */}
-                        <div className="col-md-6">
-                          <h6 className="fw-semibold mb-3 text-primary fs-13 text-uppercase">
-                            <i className="ti ti-building-bank me-1" />Brokerage
-                          </h6>
-                          <div className="mb-3">
-                            <label className="form-label fs-12 text-muted">Brokerage Fee</label>
-                            <input type="text" className="form-control form-control-sm" placeholder="$0.00" />
-                          </div>
-                          <div className="mb-3">
-                            <label className="form-label fs-12 text-muted">Brokerage Fee Received</label>
-                            <select className="form-select form-select-sm">
-                              <option>No</option>
-                              <option>Yes</option>
-                            </select>
-                          </div>
-                          <div className="mb-3">
-                            <label className="form-label fs-12 text-muted">Brokerage Fee Received On</label>
-                            <input type="date" className="form-control form-control-sm" />
-                          </div>
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                          <h6 className="fw-semibold mb-0">Manage Documents</h6>
+                          <p className="text-muted fs-12 mb-0">Send customizable quotes, proposals and contracts to close deals faster.</p>
                         </div>
-                        {/* Commission */}
-                        <div className="col-md-6">
-                          <h6 className="fw-semibold mb-3 text-success fs-13 text-uppercase">
-                            <i className="ti ti-coin me-1" />Commission
-                          </h6>
-                          <div className="mb-3">
-                            <label className="form-label fs-12 text-muted">Commission Amount</label>
-                            <input type="text" className="form-control form-control-sm" placeholder="$0.00" />
-                          </div>
-                          <div className="mb-3">
-                            <label className="form-label fs-12 text-muted">Commission Received</label>
-                            <select className="form-select form-select-sm">
-                              <option>No</option>
-                              <option>Yes</option>
-                            </select>
-                          </div>
-                          <div className="mb-3">
-                            <label className="form-label fs-12 text-muted">Commission Received On</label>
-                            <input type="date" className="form-control form-control-sm" />
+                        <button className="btn btn-sm btn-danger">
+                          Create Document
+                        </button>
+                      </div>
+                      {documents.length > 0 ? (
+                        documents.map((doc: any, di: number) => {
+                          const docName = doc?.FileName ?? doc?.DocumentName ?? doc?.Name ?? doc?.Title ?? `Document ${di + 1}`;
+                          const docType = doc?.DocumentType ?? doc?.Type ?? doc?.MimeType ?? null;
+                          const docOwner= doc?.OwnerName ?? doc?.UploadedBy ?? doc?.AgentName ?? null;
+                          const docDate = fmt(doc?.CreatedDate ?? doc?.UploadDate ?? doc?.Date, 'date');
+                          const docSize = doc?.FileSize
+                            ? (Number(doc.FileSize) > 1024
+                              ? `${(Number(doc.FileSize) / 1024).toFixed(0)} KB`
+                              : `${doc.FileSize} B`)
+                            : null;
+                          const docStatus = doc?.Status ?? doc?.strStatus ?? null;
+                          const statusCls = docStatus === 'Sent' ? 'bg-soft-success text-success'
+                            : docStatus === 'Draft' ? 'bg-soft-warning text-warning'
+                            : docStatus === 'Signed' ? 'bg-soft-info text-info'
+                            : 'bg-soft-secondary text-secondary';
+                          return (
+                            <div key={di} className="card border shadow-none mb-3">
+                              <div className="card-body p-3">
+                                <div className="d-flex align-items-center justify-content-between">
+                                  <div className="d-flex align-items-center gap-2">
+                                    <div
+                                      className="flex-shrink-0 rounded bg-soft-success d-flex align-items-center justify-content-center"
+                                      style={{ width: 36, height: 36 }}
+                                    >
+                                      <i className="ti ti-file-text text-success" style={{ fontSize: 18 }} />
+                                    </div>
+                                    <div>
+                                      <p className="mb-0 fw-medium fs-13">{docName}</p>
+                                      <div className="d-flex align-items-center gap-2">
+                                        {docOwner && (
+                                          <span className="fs-11 text-muted">{docOwner} <span className="badge bg-soft-secondary text-secondary fs-10">Owner</span></span>
+                                        )}
+                                        {docSize && <span className="fs-11 text-muted">{docSize}</span>}
+                                        {docDate !== '—' && <span className="fs-11 text-muted">{docDate}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="d-flex align-items-center gap-2">
+                                    {docType && <span className="badge bg-soft-info text-info fs-10">{docType}</span>}
+                                    {docStatus && <span className={`badge ${statusCls} fs-10`}>{docStatus}</span>}
+                                    <button className="btn btn-link btn-sm text-muted p-0">
+                                      <i className="ti ti-dots-vertical" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-5">
+                          <i className="ti ti-files fs-48 text-muted opacity-50" />
+                          <p className="text-muted mt-2 mb-1">No documents attached to this deal.</p>
+                          <p className="text-muted fs-12">Use the button above to create a proposal, quote, or contract.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Email tab ────────────────────────────────────────────── */}
+                <div className="tab-pane" id="tab_email">
+                  <div className="card">
+                    <div className="card-body">
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <h6 className="fw-semibold mb-0">Email</h6>
+                        <button className="btn btn-sm btn-outline-primary">
+                          <i className="ti ti-plus me-1" />Create Email
+                        </button>
+                      </div>
+                      <div className="card border shadow-none">
+                        <div className="card-body p-4">
+                          <div className="d-flex align-items-center justify-content-between">
+                            <div>
+                              <h6 className="fw-semibold mb-1">Manage Emails</h6>
+                              <p className="text-muted fs-13 mb-0">You can send and reply to emails directly via this section.</p>
+                            </div>
+                            <button className="btn btn-danger btn-sm">
+                              Connect Account
+                            </button>
                           </div>
                         </div>
                       </div>
-                      <div className="border-top pt-3 mt-2">
-                        <div className="row align-items-center">
-                          <div className="col-md-4">
-                            <label className="form-label fs-12 text-muted">Compliance Status</label>
-                            <select className="form-select form-select-sm">
-                              {['Pending', 'In Progress', 'Completed', 'Issue Found', 'On Hold'].map((s) => (
-                                <option key={s}>{s}</option>
-                              ))}
-                            </select>
+                      {deal?.Email && (
+                        <div className="mt-3 p-3 rounded bg-light d-flex align-items-center gap-2">
+                          <i className="ti ti-mail text-primary" style={{ fontSize: 18 }} />
+                          <div>
+                            <p className="mb-0 fw-medium fs-13">Primary contact email</p>
+                            <a href={`mailto:${deal.Email}`} className="text-primary fs-12">{deal.Email}</a>
                           </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
